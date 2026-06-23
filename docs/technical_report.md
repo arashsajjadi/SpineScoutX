@@ -14,16 +14,21 @@ interpretation in [`results.md`](results.md):
   macro F1 0.706, severe recall **0.751**, severe AUROC **0.971**, ECE 0.027.
 - **E1 anatomy-guided:** weighted log loss 0.458, macro F1 0.717, severe recall
   0.711, ECE 0.034 — a marginal, mixed change vs E0.
-- **Counterfactual ablation (decisive):** zeroing / shuffling / noising the anatomy
-  prior changes weighted log loss by **< 0.001** ⇒ **E1 largely ignores the anatomy
-  branch**; the small E1>E0 aggregate edge is **not** attributable to anatomy.
+- **E1 ablation (v0.4, decisive):** zeroing / shuffling / noising the anatomy prior
+  changes weighted log loss by **< 0.001** ⇒ **E1 (concat fusion) largely ignores
+  anatomy**; its small aggregate edge is **not** attributable to anatomy.
+- **E2 anatomy-forced (v0.5):** region-pooling + global-feature dropout. Its ablation
+  shows zero/noise/wrong-region degrade weighted log loss by **0.014–0.020** (~**20×**
+  E1) ⇒ **E2 measurably USES anatomy**, and `target_region_only` is the best mode.
+  E2 also exposes a higher severe-recall frontier (sevR **0.855** reachable vs E0
+  0.751). It is not a free aggregate win (E2 ≈ E0 at the selected checkpoint) and AEC
+  stays ≈ 0.10. Full detail: [`results.md`](results.md).
 
-**Answer to the research question:** in this implementation, explicit anatomy priors
-do **not** meaningfully improve disc-level grading, and the model does not rely on
-them (mean AEC ≈ 0.10, flat across perturbations). We report this **negative/nuanced
-result honestly** — the ablation is precisely what prevents a false "anatomy helps"
-claim from the tiny aggregate edge. The synthetic smoke (§9.2) is retained only as a
-no-data CI path and is clearly separated from these real results.
+**Answer to the research question:** *concatenating* anatomy priors does not help
+(the model ignores them); making the model **structurally region-forced** does make
+anatomy operationally used and lifts the severe-recall frontier, though not aggregate
+accuracy or evidence localization in this first version. Reported exactly as
+measured. The synthetic smoke (§9.3) is a no-data CI path only.
 
 ## 1. Abstract
 

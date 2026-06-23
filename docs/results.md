@@ -74,8 +74,63 @@ let the model **ignore** anatomy (zero ≈ shuffle ≈ correct). Concatenated ma
 is not bypassable: the anatomy masks define **regions**, and features are **region-pooled** from
 those masks (canal/disc/vertebra), with global-feature dropout forcing the head to rely on the
 region features. If the mask is zeroed or shuffled, the region features change by construction, so
-the prediction must change too — making the ablation a genuine test of anatomy usage. See
-`docs/technical_report.md` and the E2 results/ablation below once available.
+the prediction must change too — making the ablation a genuine test of anatomy usage.
+
+## v0.5 — E2 anatomy-forced (REAL, real RSNA val)
+
+E2 = `AnatomyForcedRegionClassifier`: image→feature map; anatomy masks define
+regions; masked region pooling (disc/canal/vertebra); condition→target-region
+attention; global-feature dropout (0.5) forces region reliance; severe-aware model
+selection (`wll + 0.08·severe_fnr`).
+
+### Grading metrics (selected checkpoint)
+| metric | E0 image-only | E1 concat | **E2 anatomy-forced** |
+|---|---|---|---|
+| weighted log loss ↓ | 0.4621 | 0.4579 | 0.4730 |
+| macro F1 ↑ | 0.706 | 0.717 | 0.716 |
+| severe recall ↑ | 0.751 | 0.711 | 0.735 |
+| severe AUROC ↑ | 0.971 | 0.972 | **0.973** |
+| ECE ↓ | 0.027 | 0.034 | **0.0275** |
+
+At the wll/severe-aware-optimal checkpoint, E2 is roughly comparable to E0/E1.
+**But the severe-recall frontier differs:** during training E2 reached **severe
+recall 0.855** (epoch 2) at weighted log loss 0.516 — a **+0.10 severe-recall**
+operating point above E0's best (0.751). The severe-aware λ=0.08 was too small to
+*select* that point; a larger λ selects it. So E2 can trade ~0.05 log loss for ~+0.10
+severe recall — a capability E0/E1 did not show. We report both, hiding no tradeoff.
+
+### Decisive ablation — does E2 use anatomy? (YES, unlike v0.4)
+| anatomy mode | weighted log loss | severe recall | Δwll vs correct |
+|---|---|---|---|
+| correct | 0.4730 | 0.735 | — |
+| shuffled | 0.4741 | 0.737 | +0.001 |
+| zero | 0.4928 | 0.800 | **+0.020** |
+| noise | 0.4873 | 0.733 | **+0.014** |
+| target_region_only | 0.4654 | 0.754 | **−0.008** |
+| wrong_region_only | 0.4887 | 0.786 | **+0.016** |
+
+- **E2 genuinely uses anatomy.** Zeroing / noising / wrong-region degrade weighted
+  log loss by **0.014–0.020** — versus **< 0.001** for the v0.4 concat model (E1).
+  The structural region-pooling forcing increased anatomy sensitivity ~**20×**.
+- **`target_region_only` is the best mode** (Δwll −0.008): keeping only the
+  condition's dominant region (canal for canal-stenosis, disc for foraminal) and
+  zeroing the rest *improves* log loss — direct evidence the target region carries
+  the useful signal.
+- **Honest nuance:** `shuffled ≈ correct` (Δwll +0.001). The model is sensitive to
+  whether *plausible* anatomy is present (zero/noise hurt) but not to whether it is
+  the *correct sample's* anatomy — so E2 uses anatomy as a **regional
+  presence/plausibility gate**, not precise per-sample localization.
+- **AEC ≈ 0.10**, still low and roughly flat — Grad-CAM evidence does not strongly
+  concentrate in the (small) target regions (AEC is region-size limited). Forcing
+  *feature* reliance did not by itself force *saliency* localization (future work:
+  an explicit AEC/region-saliency loss).
+
+### v0.4 → v0.5 verdict
+The anatomy-forced design **succeeded at its scientific goal**: it converted an
+"anatomy is ignored" model into one that **measurably uses anatomy** (20× larger
+ablation deltas) with a **higher severe-recall frontier**. It is not a free accuracy
+win at the selected checkpoint (E2 ≈ E0 on aggregate log loss) and does not yet
+improve evidence localization (AEC). Reported exactly as measured.
 
 ## Honest interpretation
 - **Did anatomy priors help classification?** Not meaningfully — a <1% log-loss /

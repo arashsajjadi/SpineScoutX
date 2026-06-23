@@ -68,22 +68,26 @@ left/right subarticular stenosis. See [`docs/data_setup.md`](docs/data_setup.md)
 All experiments were run on **real** data (RSNA via Kaggle; SPIDER via Zenodo, CC
 BY 4.0). Held-out validation:
 
-| metric | E0 image-only | E1 anatomy-guided |
-|---|---|---|
-| weighted log loss ↓ | 0.4621 | **0.4579** |
-| macro F1 ↑ | 0.706 | **0.717** |
-| **severe recall** ↑ | **0.751** | 0.711 |
-| severe AUROC ↑ | 0.971 | 0.972 |
-| ECE ↓ | **0.027** | 0.034 |
+| metric | E0 image-only | E1 concat (v0.4) | E2 anatomy-forced (v0.5) |
+|---|---|---|---|
+| weighted log loss ↓ | 0.4621 | 0.4579 | 0.4730 |
+| macro F1 ↑ | 0.706 | 0.717 | 0.716 |
+| severe recall ↑ | 0.751 | 0.711 | 0.735 |
+| severe AUROC ↑ | 0.971 | 0.972 | **0.973** |
+| ECE ↓ | 0.027 | 0.034 | 0.0275 |
 
 - **E4 SPIDER segmentation:** mean Dice **0.884** (canal 0.902, vertebra 0.903).
-- **Headline finding (honest):** explicit anatomy priors give only a marginal,
-  mixed change vs the image-only baseline, and the **counterfactual ablation shows
-  E1 largely ignores the anatomy branch** (zero ≈ shuffle ≈ correct, |Δ log loss| <
-  0.001). So anatomy priors do **not** meaningfully improve grading in this setup —
-  reported as an honest negative/nuanced result, not an improvement claim. The
-  ablation is what prevents over-claiming the tiny aggregate edge. Full detail +
-  failure analysis: [`docs/results.md`](docs/results.md).
+- **v0.4 finding:** the concat anatomy-guided model (E1) **largely ignores anatomy**
+  — its ablation shows zero ≈ shuffle ≈ correct (|Δ log loss| < 0.001). A marginal,
+  mixed change vs the image-only baseline; reported as an honest negative result.
+- **v0.5 finding:** the **anatomy-forced** model (E2; region pooling + global-feature
+  dropout) **measurably uses anatomy** — zeroing/noising/wrong-region degrade
+  weighted log loss by 0.014–0.020 (**~20× more** than E1), and the
+  condition's target region is the most useful (`target_region_only` is the best
+  ablation mode). It also exposes a higher **severe-recall frontier** (severe recall
+  **0.855** reachable vs E0's 0.751). It is **not** a free aggregate-accuracy win
+  (E2 ≈ E0 at the selected checkpoint) and does not yet improve evidence
+  localization (AEC ≈ 0.10). Honest detail: [`docs/results.md`](docs/results.md).
 
 No data, DICOMs, masks, crops, caches, weights, or runs are committed.
 
