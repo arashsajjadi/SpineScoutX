@@ -63,21 +63,29 @@ left/right subarticular stenosis. See [`docs/data_setup.md`](docs/data_setup.md)
   research; SPIDER = CC BY 4.0. You must obtain them yourself under their terms.
 - No DICOMs, NIfTI volumes, masks, checkpoints, or caches are committed.
 
-### Real-data status
+### Real-data results
 
-| Experiment | Data | Status |
+All experiments were run on **real** data (RSNA via Kaggle; SPIDER via Zenodo, CC
+BY 4.0). Held-out validation:
+
+| metric | E0 image-only | E1 anatomy-guided |
 |---|---|---|
-| **E4 — SPIDER anatomy segmentation** | SPIDER (CC BY 4.0) | ✅ **REAL** — mean Dice **0.884**, canal **0.902** on SPIDER's official val split |
-| E0 / E1 / E2-E3 — RSNA grading + anatomy priors | RSNA (LumbarDISC) | 🟡 **code complete + tested; data-gated** — pipeline runs end-to-end on synthetic DICOM fixtures; real run needs your Kaggle/MIRA credentials |
+| weighted log loss ↓ | 0.4621 | **0.4579** |
+| macro F1 ↑ | 0.706 | **0.717** |
+| **severe recall** ↑ | **0.751** | 0.711 |
+| severe AUROC ↑ | 0.971 | 0.972 |
+| ECE ↓ | **0.027** | 0.034 |
 
-E4 was trained on the real SPIDER dataset (see
-[`docs/technical_report.md`](docs/technical_report.md) §9.1). The full RSNA path
-(`prepare-rsna` crops → manifest, `prepare-anatomy-priors` SPIDER→RSNA transfer,
-E0/E1/ablation) is **implemented and regression-tested** but RSNA itself is
-distributed only via Kaggle and RSNA MIRA — **both require your credentials**.
-Once obtained, the whole study runs with the command sequence in
-[`docs/data_status.md`](docs/data_status.md). The RSNA numbers shown here remain
-**synthetic smoke only** until then. Check readiness: `spinescoutx doctor --data`.
+- **E4 SPIDER segmentation:** mean Dice **0.884** (canal 0.902, vertebra 0.903).
+- **Headline finding (honest):** explicit anatomy priors give only a marginal,
+  mixed change vs the image-only baseline, and the **counterfactual ablation shows
+  E1 largely ignores the anatomy branch** (zero ≈ shuffle ≈ correct, |Δ log loss| <
+  0.001). So anatomy priors do **not** meaningfully improve grading in this setup —
+  reported as an honest negative/nuanced result, not an improvement claim. The
+  ablation is what prevents over-claiming the tiny aggregate edge. Full detail +
+  failure analysis: [`docs/results.md`](docs/results.md).
+
+No data, DICOMs, masks, crops, caches, weights, or runs are committed.
 
 ## 6. Quickstart
 

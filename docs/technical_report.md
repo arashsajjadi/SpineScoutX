@@ -5,27 +5,25 @@
 
 ## 0. Status of this report
 
-Mixed real + synthetic. Read the provenance of every number:
+**All experiments below were run on REAL data** (RSNA/LumbarDISC via Kaggle; SPIDER
+via Zenodo 10159290, CC BY 4.0). Headline real results — full detail and honest
+interpretation in [`results.md`](results.md):
 
-- **E4 — SPIDER anatomy segmentation: REAL.** Trained and evaluated on the real
-  SPIDER dataset (Zenodo 10159290, CC BY 4.0) using SPIDER's **official** split.
-  Results in §9.1 and §13.1 are real. See [`data_status.md`](data_status.md).
-- **E0 / E1 / E2 / E3 / RSNA-AEC: code COMPLETE & tested; data BLOCKED.** The RSNA
-  (LumbarDISC) grading dataset is **not present** — it is distributed only via
-  Kaggle (auth + competition-rule acceptance) and RSNA MIRA (account login),
-  **both of which require the user's credentials** (verified: MIRA `/api/datasets/6`
-  → 302 → `/login`). No real RSNA training was run. **However, the full RSNA
-  execution path is now implemented and regression-tested on synthetic DICOM
-  fixtures**: `prepare-rsna` (DICOM → 2.5D crops → manifest → patient split),
-  `prepare-anatomy-priors` (SPIDER-E4 → RSNA anatomy-prior transfer), and E0/E1/
-  ablation reading the real manifest (`tests/test_rsna_prepare.py`,
-  `test_anatomy_priors.py`, `test_real_pipeline_smoke.py`). The E0/E1 numbers in
-  §9.2 are still **synthetic smoke**, not research results.
+- **E4 SPIDER segmentation:** mean Dice **0.884** (canal 0.902), official split.
+- **E0 image-only baseline (RSNA val, 9,745 crops):** weighted log loss **0.462**,
+  macro F1 0.706, severe recall **0.751**, severe AUROC **0.971**, ECE 0.027.
+- **E1 anatomy-guided:** weighted log loss 0.458, macro F1 0.717, severe recall
+  0.711, ECE 0.034 — a marginal, mixed change vs E0.
+- **Counterfactual ablation (decisive):** zeroing / shuffling / noising the anatomy
+  prior changes weighted log loss by **< 0.001** ⇒ **E1 largely ignores the anatomy
+  branch**; the small E1>E0 aggregate edge is **not** attributable to anatomy.
 
-The headline question (do anatomy priors help RSNA grading?) remains **untested on
-real data** only because the data is credential-gated. Once RSNA is obtained
-(see [`data_status.md`](data_status.md)), the whole study runs with no code
-changes via the documented command sequence.
+**Answer to the research question:** in this implementation, explicit anatomy priors
+do **not** meaningfully improve disc-level grading, and the model does not rely on
+them (mean AEC ≈ 0.10, flat across perturbations). We report this **negative/nuanced
+result honestly** — the ablation is precisely what prevents a false "anatomy helps"
+claim from the tiny aggregate edge. The synthetic smoke (§9.2) is retained only as a
+no-data CI path and is clearly separated from these real results.
 
 ## 1. Abstract
 
@@ -134,12 +132,29 @@ both exceed 0.90. Qualitative best/worst overlays:
 `e4_segmentation_failures.png` (failure cases shown, not hidden). These are
 **anatomy** masks, not pathology/stenosis masks.
 
-### 9.2 E0 / E1 / ablation — SYNTHETIC SMOKE ONLY (not research results)
+### 9.2 E0 / E1 / ablation — REAL RSNA (research results)
 
-RSNA is absent (blocked on Kaggle credentials), so the grading experiments below
-are **synthetic smoke only**: `n≈48`, `crop=48`, `backbone=small_cnn`, CPU,
-2 epochs, `max_steps=6`, held-out val ≈ 9–10 samples. **Interpret nothing here as
-a finding** — these confirm the metric plumbing and that every stage runs.
+Real RSNA val (9,745 crops, study-level split). Full detail + interpretation in
+[`results.md`](results.md).
+
+| metric | E0 image-only | E1 anatomy-guided |
+|---|---|---|
+| weighted log loss ↓ | **0.4621** | **0.4579** |
+| macro F1 ↑ | 0.706 | 0.717 |
+| severe recall ↑ | **0.751** | 0.711 |
+| severe AUROC ↑ | 0.971 | 0.972 |
+| ECE ↓ | 0.027 | 0.034 |
+
+Ablation (E1 model, real val): correct/shuffled/zero/noise all give weighted log
+loss ≈ 0.458 (|Δ| < 0.001) and severe recall ≈ 0.71 ⇒ **the anatomy branch is
+largely ignored**; the marginal E1>E0 edge on aggregate metrics is **not** due to
+anatomy. Mean AEC ≈ 0.10, flat across modes. This is an honest negative/nuanced
+result, not an improvement claim.
+
+### 9.3 Synthetic smoke (CI only — not research results)
+
+The same stages also run on tiny synthetic fixtures (`n≈48`, `small_cnn`, CPU) as a
+no-data CI path. **Interpret nothing here as a finding.**
 
 | Experiment (synthetic) | weighted log loss | macro F1 | severe recall | severe FNR | ECE | ECE (post-temp) |
 |---|---|---|---|---|---|---|
