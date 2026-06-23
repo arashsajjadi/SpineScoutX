@@ -26,10 +26,23 @@ from .heatmaps import normalize_heatmap
 from .overlays import overlay_heatmap, overlay_mask, to_rgb
 
 _STAMP_TEXT = "Research-only • Not diagnostic"
+SYNTHETIC_PROVENANCE = "⚠ SYNTHETIC SMOKE — not a real RSNA/SPIDER result"
 
 
-def _stamp(fig: plt.Figure) -> None:
-    """Add the mandatory research-only / not-diagnostic banner to a figure."""
+def provenance_label(dataset_source: str | None) -> str | None:
+    """Map a finding-graph/report ``dataset_source`` to a provenance watermark.
+
+    Returns the synthetic-smoke warning when the source is synthetic/absent so a
+    figure can never be mistaken for a real-data research result; returns ``None``
+    for a genuine dataset source (e.g. ``"rsna"``/``"spider"``).
+    """
+    if not dataset_source or str(dataset_source).lower() in {"synthetic", "smoke", "toy", "fake"}:
+        return SYNTHETIC_PROVENANCE
+    return None
+
+
+def _stamp(fig: plt.Figure, provenance: str | None = None) -> None:
+    """Add the mandatory research-only banner (and optional provenance warning)."""
     fig.text(
         0.5,
         0.01,
@@ -40,6 +53,18 @@ def _stamp(fig: plt.Figure) -> None:
         color="#b00020",
         fontweight="bold",
     )
+    if provenance:
+        fig.text(
+            0.5,
+            0.965,
+            provenance,
+            ha="center",
+            va="top",
+            fontsize=10,
+            color="#b00020",
+            fontweight="bold",
+            bbox={"facecolor": "#fff3cd", "edgecolor": "#b00020", "boxstyle": "round,pad=0.3"},
+        )
 
 
 def _save(fig: plt.Figure, path: str | Path) -> Path:
@@ -68,7 +93,9 @@ def _show_image(ax: plt.Axes, image: Any, title: str | None = None) -> None:
         ax.set_title(title, fontsize=9)
 
 
-def make_examples_grid(items: list[dict], path: str | Path) -> Path:
+def make_examples_grid(
+    items: list[dict], path: str | Path, *, provenance: str | None = None
+) -> Path:
     """Grid of example crops with optional anatomy / heatmap overlays.
 
     Each ``item`` may contain: ``image`` or ``crop`` (2D/3D array),
@@ -92,11 +119,13 @@ def make_examples_grid(items: list[dict], path: str | Path) -> Path:
             rgb = overlay_heatmap(rgb, normalize_heatmap(np.asarray(item["heatmap"])))
         _show_image(ax, rgb, str(item.get("title", f"example {idx}")))
     fig.suptitle("Example crops (synthetic / research)", fontsize=11)
-    _stamp(fig)
+    _stamp(fig, provenance)
     return _save(fig, path)
 
 
-def make_failure_cases(items: list[dict], path: str | Path) -> Path:
+def make_failure_cases(
+    items: list[dict], path: str | Path, *, provenance: str | None = None
+) -> Path:
     """Grid of clearly-labeled FAILURE examples (wrong grade / off-target heatmap)."""
     n = max(1, len(items))
     cols = min(3, n)
@@ -119,7 +148,7 @@ def make_failure_cases(items: list[dict], path: str | Path) -> Path:
             spine.set_edgecolor("#b00020")
             spine.set_linewidth(2.0)
     fig.suptitle("Failure cases (synthetic / research)", fontsize=11)
-    _stamp(fig)
+    _stamp(fig, provenance)
     return _save(fig, path)
 
 
@@ -128,11 +157,14 @@ def make_reliability_diagram(
     path: str | Path,
     *,
     ece: float | None = None,
+    provenance: str | None = None,
+    low_n_threshold: int = 50,
 ) -> Path:
     """Reliability diagram from a ``reliability_curve``-style dict."""
     conf = np.asarray(curve.get("bin_confidence", []), dtype=np.float32)
     acc = np.asarray(curve.get("bin_accuracy", []), dtype=np.float32)
     counts = np.asarray(curve.get("bin_count", []), dtype=np.float32)
+    total_n = int(np.nansum(counts)) if counts.size else 0
     fig, ax = plt.subplots(figsize=(5.0, 5.0))
     ax.plot([0, 1], [0, 1], linestyle="--", color="gray", label="perfect calibration")
     if conf.size and acc.size:
@@ -147,11 +179,25 @@ def make_reliability_diagram(
         title += f"  (ECE = {float(ece):.3f})"
     ax.set_title(title, fontsize=11)
     ax.legend(loc="upper left", fontsize=8)
-    _stamp(fig)
+    if total_n and total_n < low_n_threshold:
+        ax.text(
+            0.5,
+            0.30,
+            f"⚠ low sample count (n={total_n})\ncalibration estimate is unreliable",
+            ha="center",
+            va="center",
+            transform=ax.transAxes,
+            fontsize=9,
+            color="#b00020",
+            fontweight="bold",
+        )
+    _stamp(fig, provenance)
     return _save(fig, path)
 
 
-def make_ablation_summary(results: dict, path: str | Path) -> Path:
+def make_ablation_summary(
+    results: dict, path: str | Path, *, provenance: str | None = None
+) -> Path:
     """Bar chart of severe_recall and weighted_logloss across ablation modes."""
     modes = list(results.keys())
     severe_recall = [float(_metric(results[m], "severe_recall")) for m in modes]
@@ -168,11 +214,13 @@ def make_ablation_summary(results: dict, path: str | Path) -> Path:
     ax2.set_xticklabels(modes, rotation=20, ha="right", fontsize=8)
     ax2.set_title("Weighted log-loss by anatomy mode", fontsize=10)
     fig.suptitle("Anatomy ablation summary (research)", fontsize=11)
-    _stamp(fig)
+    _stamp(fig, provenance)
     return _save(fig, path)
 
 
-def make_linkedin_hero_panel(panel: dict, path: str | Path) -> Path:
+def make_linkedin_hero_panel(
+    panel: dict, path: str | Path, *, provenance: str | None = None
+) -> Path:
     """Composite hero panel: overview, crop, anatomy prior, evidence, card, failure.
 
     ``panel`` keys (all optional, synthetic numpy arrays / dicts):
@@ -213,7 +261,7 @@ def make_linkedin_hero_panel(panel: dict, path: str | Path) -> Path:
         spine.set_linewidth(2.0)
 
     fig.suptitle("SpineScoutX - anatomy-guided evidence (research demo)", fontsize=13)
-    _stamp(fig)
+    _stamp(fig, provenance)
     return _save(fig, path)
 
 
@@ -232,9 +280,11 @@ def figures_from_report(
     out = Path(out_dir)
     ensure_dir(out)
     written: list[Path] = []
+    # Watermark every figure as synthetic unless the report carries a real source.
+    prov = provenance_label(report.get("dataset_source"))
 
     findings = report.get("findings", [])
-    written.append(_findings_card_figure(findings, out / "findings_card.png"))
+    written.append(_findings_card_figure(findings, out / "findings_card.png", provenance=prov))
 
     if "reliability_curve" in report:
         written.append(
@@ -242,10 +292,13 @@ def figures_from_report(
                 report["reliability_curve"],
                 out / "reliability.png",
                 ece=report.get("ece"),
+                provenance=prov,
             )
         )
     if "ablation" in report and isinstance(report["ablation"], dict):
-        written.append(make_ablation_summary(report["ablation"], out / "ablation.png"))
+        written.append(
+            make_ablation_summary(report["ablation"], out / "ablation.png", provenance=prov)
+        )
 
     if sample is not None and sample.get("image") is not None:
         item = {
@@ -254,7 +307,7 @@ def figures_from_report(
             "heatmap": sample.get("heatmap"),
             "title": "sample",
         }
-        written.append(make_examples_grid([item], out / "examples.png"))
+        written.append(make_examples_grid([item], out / "examples.png", provenance=prov))
 
     return written
 
@@ -326,7 +379,9 @@ def _draw_card(ax: plt.Axes, card: dict) -> None:
     )
 
 
-def _findings_card_figure(findings: list, path: str | Path) -> Path:
+def _findings_card_figure(
+    findings: list, path: str | Path, *, provenance: str | None = None
+) -> Path:
     """Schematic card summarizing finding grades with no identifiers."""
     counts = dict.fromkeys(SEVERITIES, 0)
     for finding in findings:
@@ -341,12 +396,25 @@ def _findings_card_figure(findings: list, path: str | Path) -> Path:
     ax.set_xticklabels(grades, fontsize=9)
     ax.set_ylabel("finding count")
     ax.set_title("Finding-graph summary (research)", fontsize=11)
-    _stamp(fig)
+    if len(findings) <= 1:
+        ax.text(
+            0.5,
+            0.5,
+            "⚠ toy smoke output\n(≤1 finding — not a real study)",
+            ha="center",
+            va="center",
+            transform=ax.transAxes,
+            fontsize=9,
+            color="#b00020",
+            fontweight="bold",
+        )
+    _stamp(fig, provenance)
     return _save(fig, path)
 
 
 __all__ = [
     "figures_from_report",
+    "provenance_label",
     "make_ablation_summary",
     "make_examples_grid",
     "make_failure_cases",

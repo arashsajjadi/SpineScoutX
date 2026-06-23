@@ -99,6 +99,9 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     if not optional["SimpleITK"] and not optional["nibabel"]:
         info["notes"].append("Neither SimpleITK nor nibabel -> cannot read SPIDER volumes.")
 
+    if getattr(args, "data", False):
+        info["datasets"] = _dataset_readiness(args.rsna_root, args.spider_root)
+
     if not args.json:
         log.info("SpineScoutX %s  (%s)", __version__, _DISCLAIMER)
         log.info(
@@ -112,7 +115,23 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         )
         for n in info["notes"]:
             log.info("note: %s", n)
+        for name, rep in info.get("datasets", {}).items():
+            status = "READY" if rep["exists"] else "MISSING"
+            log.info("dataset %s: %s (%s)", name, status, rep.get("root"))
+            for miss in rep.get("missing", [])[:6]:
+                log.info("    missing: %s", miss)
     return _ok(args, info)
+
+
+def _dataset_readiness(rsna_root: str, spider_root: str) -> dict[str, Any]:
+    """Report RSNA + SPIDER dataset readiness (never raises; no download)."""
+    from .data.rsna_index import check_rsna_available
+    from .data.spider_index import check_spider_available
+
+    return {
+        "rsna": check_rsna_available(rsna_root).to_dict(),
+        "spider": check_spider_available(spider_root).to_dict(),
+    }
 
 
 def cmd_prepare_rsna(args: argparse.Namespace) -> int:
@@ -377,7 +396,10 @@ def build_parser() -> argparse.ArgumentParser:
         sp.set_defaults(func=handler, command=name)
         return sp
 
-    add("doctor", cmd_doctor, "Check environment and optional dependencies")
+    sp = add("doctor", cmd_doctor, "Check environment and optional dependencies")
+    sp.add_argument("--data", action="store_true", help="also report RSNA/SPIDER dataset readiness")
+    sp.add_argument("--rsna-root", default="data/raw/rsna", help="RSNA root for --data check")
+    sp.add_argument("--spider-root", default="data/raw/spider", help="SPIDER root for --data check")
 
     sp = add("prepare-rsna", cmd_prepare_rsna, "Index/crop RSNA data into a cache")
     sp.add_argument("--rsna-root", required=True)

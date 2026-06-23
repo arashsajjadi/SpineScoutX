@@ -63,6 +63,14 @@ left/right subarticular stenosis. See [`docs/data_setup.md`](docs/data_setup.md)
   research; SPIDER = CC BY 4.0. You must obtain them yourself under their terms.
 - No DICOMs, NIfTI volumes, masks, checkpoints, or caches are committed.
 
+### Real-data status
+
+All published metrics/figures here are **synthetic smoke only** — no real RSNA/SPIDER
+run has been executed yet (RSNA requires your Kaggle credentials + competition-rule
+acceptance; SPIDER is a ~3.76 GB CC BY 4.0 download). See
+[`docs/data_status.md`](docs/data_status.md) for the exact acquisition steps and the
+current blocker, and check readiness with `spinescoutx doctor --data`.
+
 ## 6. Quickstart
 
 ```bash
