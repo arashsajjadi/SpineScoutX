@@ -375,6 +375,33 @@ def cmd_report(args: argparse.Namespace) -> int:
     return _ok(args, {"json": str(json_path), "markdown": str(md_path)})
 
 
+def cmd_report_llm(args: argparse.Namespace) -> int:
+    """Optionally polish a finding-graph report with a local Ollama model (fail-closed)."""
+    import json
+
+    from .reporting.finding_graph import finding_graph_from_dict
+    from .reporting.llm_report import generate_safe_llm_report
+    from .reporting.markdown_report import render_markdown_report
+    from .utils.paths import ensure_dir
+
+    graph = json.loads(Path(args.input).read_text())
+    det_md = render_markdown_report(finding_graph_from_dict(graph))
+    result = generate_safe_llm_report(graph, args.model, args.host)
+    section = (
+        result["text"]
+        if result["ok"]
+        else f"*(LLM wording unavailable/rejected: {result['reasons']}. "
+        "The deterministic report above is authoritative.)*"
+    )
+    header = f"## LLM-polished wording (non-authoritative, {args.model})"
+    body = f"{det_md}\n\n---\n\n{header}\n\n{section}\n"
+    out = Path(args.out or f"outputs/real/reports/{graph.get('study_id')}_llm.md")
+    ensure_dir(out.parent)
+    out.write_text(body)
+    log.info("LLM report: %s (llm_ok=%s)", out, result["ok"])
+    return _ok(args, {"output": str(out), "llm_ok": result["ok"], "reasons": result["reasons"]})
+
+
 def cmd_figure(args: argparse.Namespace) -> int:
     from .reporting.json_report import read_json_report
     from .utils.paths import ensure_dir
@@ -521,6 +548,16 @@ def build_parser() -> argparse.ArgumentParser:
     sp = add("report", cmd_report, "Generate finding-graph JSON + Markdown report for a study")
     sp.add_argument("--study-id", required=True)
     sp.add_argument("--run", required=True)
+    sp.add_argument("--out", default=None)
+
+    sp = add(
+        "report-llm",
+        cmd_report_llm,
+        "Polish a finding-graph report via local Ollama (safe, fail-closed)",
+    )
+    sp.add_argument("--input", required=True, help="finding-graph JSON path")
+    sp.add_argument("--model", default="openbmb/minicpm-v4.5:8b")
+    sp.add_argument("--host", default="http://localhost:11434")
     sp.add_argument("--out", default=None)
 
     sp = add("figure", cmd_figure, "Render visual panels from a report JSON")
