@@ -244,6 +244,90 @@ def cmd_prepare_anatomy_priors(args: argparse.Namespace) -> int:
     return _ok(args, summary)
 
 
+def cmd_prepare_localizer(args: argparse.Namespace) -> int:
+    from .data.localizer import prepare_localizer_data
+    from .utils.paths import ensure_dir
+
+    out = ensure_dir(args.out)
+    summary = prepare_localizer_data(
+        args.rsna_root,
+        out,
+        slice_size=args.slice_size,
+        val_fraction=args.val_fraction,
+        seed=args.seed,
+        limit_studies=args.limit_studies,
+        dry_run=args.dry_run,
+    )
+    log.info("localizer data: %s", {k: summary.get(k) for k in ("n_cached", "skipped", "split")})
+    return _ok(args, summary)
+
+
+def cmd_train_localizer(args: argparse.Namespace) -> int:
+    from .training.train_localizer import train_localizer
+
+    cfg = _load_cfg(args.config)
+    run = _resolve_run_dir(cfg, args.run_id)
+    result = train_localizer(cfg, run, json_logs=args.json)
+    log.info("localizer best: %s", result.get("best"))
+    return _ok(args, {"run_dir": str(run), "best": result.get("best", {})})
+
+
+def cmd_localize_study(args: argparse.Namespace) -> int:
+    from .data.auto_localize import load_localizer, localize_study
+    from .data.rsna_index import RsnaPaths, build_series_index
+    from .training.optim import select_device
+
+    device = select_device("auto")
+    model, slice_size = load_localizer(args.run, device)
+    images_dir = Path(RsnaPaths.from_root(args.rsna_root).train_images_dir)
+    loc = localize_study(
+        args.study_id, images_dir, build_series_index(args.rsna_root), model, slice_size, device
+    )
+    if loc is None:
+        return _fail(args, f"Could not localize study {args.study_id} (no sagittal T2?)")
+    out = {
+        "study_id": args.study_id,
+        "series_id": loc["series_id"],
+        "instance": loc["instance_number"],
+        "points": {
+            lv: [round(float(loc["points"][i, 0]), 1), round(float(loc["points"][i, 1]), 1)]
+            for i, lv in enumerate(__import__("spinescoutx.constants", fromlist=["LEVELS"]).LEVELS)
+        },
+        "confidence": [round(float(c), 3) for c in loc["confidence"]],
+    }
+    log.info("localized %s: %s", args.study_id, out["points"])
+    return _ok(args, out)
+
+
+def cmd_prepare_rsna_auto_crops(args: argparse.Namespace) -> int:
+    from .data.auto_localize import prepare_rsna_auto_crops
+    from .utils.paths import ensure_dir
+
+    out = ensure_dir(args.out)
+    summary = prepare_rsna_auto_crops(
+        args.rsna_root,
+        args.localizer_run,
+        out,
+        split=args.split,
+        crop_size=args.crop_size,
+        use_25d=not args.no_25d,
+        limit_studies=args.limit_studies,
+        device=args.device,
+    )
+    if not args.dry_run:
+        import json
+
+        ensure_dir("outputs/real")
+        Path("outputs/real/rsna_auto_crops_report.json").write_text(
+            json.dumps(summary, indent=2, default=str)
+        )
+    log.info(
+        "auto-crops: %s",
+        {k: summary.get(k) for k in ("n_studies", "n_auto_crops", "skipped_studies")},
+    )
+    return _ok(args, summary)
+
+
 def _load_cfg(path: str) -> Any:
     from .config import load_config
 
@@ -584,6 +668,45 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--dry-run", action="store_true", help="report the plan without decoding")
 
     sp = add(
+        "prepare-localizer",
+        cmd_prepare_localizer,
+        "Cache mid-sagittal slices + disc-level keypoints",
+    )
+    sp.add_argument("--rsna-root", required=True)
+    sp.add_argument("--out", required=True)
+    sp.add_argument("--slice-size", type=int, default=256)
+    sp.add_argument("--val-fraction", type=float, default=0.2)
+    sp.add_argument("--seed", type=int, default=1337)
+    sp.add_argument("--limit-studies", type=int, default=None)
+    sp.add_argument("--dry-run", action="store_true")
+
+    sp = add(
+        "localize-study",
+        cmd_localize_study,
+        "Predict disc-level points for a study (auto, no GT coords)",
+    )
+    sp.add_argument("--study-id", required=True)
+    sp.add_argument(
+        "--run", required=True, help="localizer run dir (e.g. runs/l0_disc_localizer_real)"
+    )
+    sp.add_argument("--rsna-root", default="data/raw/rsna")
+
+    sp = add(
+        "prepare-rsna-auto-crops",
+        cmd_prepare_rsna_auto_crops,
+        "Auto-crop canal-stenosis findings at predicted disc-level points (real inference)",
+    )
+    sp.add_argument("--rsna-root", required=True)
+    sp.add_argument("--localizer-run", required=True)
+    sp.add_argument("--out", required=True)
+    sp.add_argument("--split", default="val")
+    sp.add_argument("--crop-size", type=int, default=224)
+    sp.add_argument("--no-25d", action="store_true")
+    sp.add_argument("--limit-studies", type=int, default=None)
+    sp.add_argument("--device", default="auto")
+    sp.add_argument("--dry-run", action="store_true")
+
+    sp = add(
         "prepare-anatomy-priors",
         cmd_prepare_anatomy_priors,
         "Generate RSNA anatomy priors from the SPIDER segmenter (E4->RSNA transfer)",
@@ -622,6 +745,11 @@ def build_parser() -> argparse.ArgumentParser:
             "train-anatomy-forced",
             cmd_train_anatomy_forced,
             "Train the anatomy-forced region-pooling classifier (E2)",
+        ),
+        (
+            "train-localizer",
+            cmd_train_localizer,
+            "Train the disc-level keypoint localizer (auto-crop, no GT at inference)",
         ),
     ]:
         sp = add(name, handler, help_text)
