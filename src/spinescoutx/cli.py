@@ -244,6 +244,38 @@ def cmd_prepare_anatomy_priors(args: argparse.Namespace) -> int:
     return _ok(args, summary)
 
 
+def cmd_build_study_index(args: argparse.Namespace) -> int:
+    from .data.study_registry import build_study_index, view_distribution
+    from .utils.paths import ensure_dir
+
+    out = ensure_dir(args.out)
+    index = build_study_index(args.rsna_root, out)
+    dist = view_distribution(index)
+    if not args.dry_run:
+        import json
+
+        rep = ensure_dir("outputs/real")
+        (rep / "study_index_report.json").write_text(json.dumps(dist, indent=2, default=str))
+    log.info(
+        "study index: %s", {k: dist[k] for k in ("n_studies", "usable", "studies_missing_axial")}
+    )
+    return _ok(args, dist)
+
+
+def cmd_inspect_study(args: argparse.Namespace) -> int:
+    from .data.study_registry import inspect_study
+
+    info = inspect_study(args.rsna_root, args.study_id)
+    log.info(
+        "study %s: views mask=%s usable=%s series=%s",
+        args.study_id,
+        info.get("view_mask"),
+        info.get("usable"),
+        info.get("n_series"),
+    )
+    return _ok(args, info)
+
+
 def cmd_prepare_localizer(args: argparse.Namespace) -> int:
     from .data.localizer import prepare_localizer_data
     from .utils.paths import ensure_dir
@@ -666,6 +698,15 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--seed", type=int, default=1337)
     sp.add_argument("--limit-studies", type=int, default=None, help="cap number of studies")
     sp.add_argument("--dry-run", action="store_true", help="report the plan without decoding")
+
+    sp = add("build-study-index", cmd_build_study_index, "Build study-level series/view registry")
+    sp.add_argument("--rsna-root", required=True)
+    sp.add_argument("--out", required=True)
+    sp.add_argument("--dry-run", action="store_true")
+
+    sp = add("inspect-study", cmd_inspect_study, "Show series/view detail for one study")
+    sp.add_argument("--study-id", required=True)
+    sp.add_argument("--rsna-root", default="data/raw/rsna")
 
     sp = add(
         "prepare-localizer",
