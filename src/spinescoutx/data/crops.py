@@ -44,6 +44,9 @@ class CropRecord:
     sequence: str
     patient_id: str
     pad_note: str = ""
+    # Provenance of the crop centre: "oracle" (GT localizer coordinate; research
+    # upper bound) or "auto" (predicted by the disc-level localizer; real inference).
+    coordinate_source: str = "oracle"
 
 
 def crop_bounds(x: float, y: float, size: int, h: int, w: int) -> tuple[int, int, int, int, bool]:
@@ -159,6 +162,14 @@ def records_to_frame(records: list[CropRecord]) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=columns)
 
 
+def _coerce_str(value: object, default: str) -> str:
+    """Return a clean string, falling back to ``default`` for NaN/None/empty."""
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return default
+    text = str(value)
+    return default if text == "" or text.lower() in ("nan", "none") else text
+
+
 def _coerce_side(value: object) -> str | None:
     if value is None:
         return None
@@ -195,6 +206,7 @@ def frame_to_records(df: pd.DataFrame) -> list[CropRecord]:
                 sequence=str(row.get("sequence", "")),
                 patient_id=str(row.get("patient_id", "")),
                 pad_note=str(row.get("pad_note", "")) if not pd.isna(row.get("pad_note")) else "",
+                coordinate_source=_coerce_str(row.get("coordinate_source", "oracle"), "oracle"),
             )
         )
     return records
