@@ -132,6 +132,25 @@ ablation deltas) with a **higher severe-recall frontier**. It is not a free accu
 win at the selected checkpoint (E2 ≈ E0 on aggregate log loss) and does not yet
 improve evidence localization (AEC). Reported exactly as measured.
 
+## Why v0.6 — study-level multi-view reasoning (motivation)
+
+v0.5 proved anatomy *sensitivity* is achievable (region pooling) but did not produce
+a decisive aggregate improvement, and the pipeline is still **crop-centric and
+dependent on RSNA ground-truth localizer coordinates** — i.e. it is not yet a
+study-level inference system. v0.6 attacks this directly:
+
+1. **Coordinate provenance** — every metric is tagged `oracle_crop` (uses GT
+   coordinates; research upper bound) vs `auto_crop` (predicted localization; real
+   inference). No GT coordinates are read at auto-mode inference.
+2. **Automatic disc-level localization** — a heatmap localizer replaces GT
+   coordinates, so we can measure the honest oracle→auto grading gap.
+3. **Study-level multi-view** — a series/view registry + sagittal+axial evidence
+   bundles + anatomy morphology features feed a multi-view model (E3), instead of one
+   crop per GT localizer.
+
+The goal is a real study-level reasoner; results are reported with provenance and
+without spin (if auto-localization bottlenecks grading, we say so).
+
 ## Honest interpretation
 - **Did anatomy priors help classification?** Not meaningfully — a <1% log-loss /
   macro-F1 edge that the ablation shows is **not** due to anatomy; severe recall is
