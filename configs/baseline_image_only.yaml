@@ -1,0 +1,44 @@
+# E0 — Image-only baseline classifier.
+# Strong, fast, clean baseline: a small 2.5D crop classifier with no anatomy priors.
+name: e0_baseline_image_only
+seed: 1337
+task: classify
+output_root: runs
+
+data:
+  rsna_cache: data/cache/rsna
+  crop_size: 224
+  use_25d: true          # stack prev/center/next slice -> 3 input channels
+  num_workers: 8
+  split_seed: 1337
+  val_fraction: 0.2
+  conditions: null       # null = all five RSNA conditions
+
+model:
+  kind: image_classifier
+  backbone: convnext_tiny # timm backbone; use "small_cnn" for offline/CI
+  pretrained: true
+  in_chans: 3
+  num_classes: 3          # normal_mild / moderate / severe
+  use_level_embedding: true
+  use_condition_embedding: true
+  embed_dim: 16
+  dropout: 0.2
+
+train:
+  epochs: 20
+  batch_size: 32
+  lr: 0.0003
+  weight_decay: 0.0001
+  amp: true
+  freeze_backbone_epochs: 2   # train head first, then partial fine-tune
+  early_stop_patience: 5
+  class_weighted_loss: true
+  weighted_sampler: false
+  loss: weighted_ce
+  monitor: val_weighted_logloss
+  monitor_mode: min
+  device: auto
+
+eval:
+  severe_recall_target: 0.80   # reporting threshold only, not a guarantee

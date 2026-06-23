@@ -1,0 +1,54 @@
+# --- SpineScoutX: never commit data, masks, or weights ---
+# Datasets / processed data / caches (research datasets are non-commercial; do not
+# redistribute). Anchored to the repo root with a leading slash so the source
+# package directory src/spinescoutx/data/ is NOT ignored.
+/data/
+/runs/
+/outputs/*
+!/outputs/.gitkeep
+
+# Harness / agent scratch
+.claude/
+
+# Medical imaging formats
+*.dcm
+*.nii
+*.nii.gz
+*.mha
+*.mhd
+*.nrrd
+
+# Model weights / checkpoints
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
+
+# Processed-data tables (manifests are regenerated; do not commit). Small intentional
+# example manifests, if ever needed, must be force-added explicitly.
+*.parquet
+*.feather
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# --- Environments / editors ---
+.venv/
+venv/
+env/
+.env
+.idea/
+.vscode/
+.DS_Store

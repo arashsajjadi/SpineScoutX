@@ -1,0 +1,49 @@
+# E1 — Anatomy-guided classifier.
+# Same grading task as E0, but the model also sees anatomy-prior channels
+# (disc / canal / vertebra) plus level and condition embeddings.
+# Anatomy priors for RSNA crops come from the SPIDER-trained segmenter (E4);
+# if no valid segmenter mask cache exists, this experiment must fail clearly
+# rather than fabricate priors.
+name: e1_anatomy_guided
+seed: 1337
+task: anatomy_guided
+output_root: runs
+
+data:
+  rsna_cache: data/cache/rsna
+  crop_size: 224
+  use_25d: true
+  num_workers: 8
+  split_seed: 1337       # MUST match E0 for a fair comparison
+  val_fraction: 0.2
+  conditions: null
+
+model:
+  kind: anatomy_guided_classifier
+  backbone: convnext_tiny
+  pretrained: true
+  in_chans: 3            # MRI 2.5D crop
+  anatomy_in_chans: 3    # disc/canal/vertebra prior channels
+  num_classes: 3
+  use_level_embedding: true
+  use_condition_embedding: true
+  embed_dim: 16
+  dropout: 0.2
+  fusion: concat
+
+train:
+  epochs: 20
+  batch_size: 32
+  lr: 0.0003
+  weight_decay: 0.0001
+  amp: true
+  freeze_backbone_epochs: 2
+  early_stop_patience: 5
+  class_weighted_loss: true
+  loss: weighted_ce
+  monitor: val_weighted_logloss
+  monitor_mode: min
+  device: auto
+
+eval:
+  compare_against: runs/e0_baseline_image_only   # baseline run dir for delta report

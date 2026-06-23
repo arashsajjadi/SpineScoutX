@@ -1,0 +1,73 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spinescoutx"
+version = "0.1.0"
+description = "Anatomy-grounded lumbar MRI finding-graph system for research-only degenerative spine analysis"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [{ name = "SpineScoutX contributors" }]
+keywords = ["mri", "lumbar-spine", "research", "segmentation", "calibration", "explainability"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: Medical Science Apps.",
+]
+
+# Core dependencies are kept minimal. pydicom and monai are OPTIONAL on purpose so
+# that the full test/CI suite runs on synthetic fixtures without any imaging deps.
+dependencies = [
+  "numpy>=1.24",
+  "pandas>=2.0",
+  "torch>=2.1",
+  "torchvision>=0.16",
+  "timm>=0.9",
+  "opencv-python-headless>=4.8",
+  "scikit-learn>=1.3",
+  "matplotlib>=3.7",
+  "pyyaml>=6.0",
+  "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+dicom = ["pydicom>=2.4"]          # required only to decode real RSNA DICOMs
+seg = ["monai>=1.3"]              # optional alternative segmentation backbone
+cli = ["rich>=13.0"]             # nicer CLI tables / colored output
+parquet = ["pyarrow>=12.0"]      # parquet crop manifests (CSV fallback otherwise)
+dev = ["pytest>=7.4", "ruff>=0.5", "build>=1.0"]
+all = ["pydicom>=2.4", "monai>=1.3", "rich>=13.0", "pyarrow>=12.0"]
+
+[project.scripts]
+spinescoutx = "spinescoutx.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/your-org/SpineScoutX"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "C4", "SIM"]
+ignore = [
+  "E741",   # ambiguous variable names (l/I) occur in anatomy level codes
+  "B008",   # function call in arg default (used for typer-free CLI defaults)
+  "SIM108", # if/else is often clearer than a long ternary; not worth the line length
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = ["ignore::DeprecationWarning"]

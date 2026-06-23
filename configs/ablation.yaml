@@ -1,0 +1,36 @@
+# E2/E3 — Counterfactual anatomy ablations.
+# Reuses the trained anatomy-guided model and re-evaluates it while perturbing the
+# anatomy-prior input. This isolates how much the model actually relies on anatomy.
+#
+# Modes:
+#   correct  -> predicted/correct anatomy prior (reference)
+#   shuffled -> anatomy prior taken from a DIFFERENT patient/study
+#   zero     -> anatomy prior set to zeros
+#   noise    -> anatomy prior replaced with random noise (optional)
+name: e3_ablation
+seed: 1337
+task: ablate
+output_root: runs
+
+data:
+  rsna_cache: data/cache/rsna
+  crop_size: 224
+  use_25d: true
+  split_seed: 1337
+  val_fraction: 0.2
+
+model:
+  kind: anatomy_guided_classifier
+  backbone: convnext_tiny
+  in_chans: 3
+  anatomy_in_chans: 3
+  num_classes: 3
+
+ablation:
+  run: runs/e1_anatomy_guided        # trained anatomy-guided run to ablate
+  modes: [correct, shuffled, zero, noise]
+  shuffle_seed: 1337                 # deterministic cross-study shuffling
+  split: val                         # evaluate on the held-out split
+
+eval:
+  metrics: [weighted_logloss, macro_f1, severe_recall, severe_fnr, ece, aec]
