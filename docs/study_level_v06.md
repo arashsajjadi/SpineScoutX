@@ -156,3 +156,23 @@ are flagged *approximate*). Genuine tri-view evidence for foraminal/subarticular
 findings needs an **axial localizer** and would carry approximate regions — so E3 is
 built and evaluated first on the canal condition where the anatomy is real, and the
 multi-view extension to axial conditions is staged explicitly rather than faked.
+
+## Deferred by design (honest scoping, not silently dropped)
+Because the measured result is that **E3 does not beat E2 on canal**, the project
+deliberately did **not** over-build more E3 superstructure that the evidence would not
+justify. The following planned items are recorded as future work rather than
+implemented-and-spun:
+- **AEC / region-saliency training objective (Phase 8).** An activation-mass loss
+  tying attention to the canal region is an *interpretability* lever, not a likely
+  accuracy lever here (the ablation shows the image stream already dominates and the
+  graph does not help). Worth doing if/when the multi-condition axial setting makes
+  cross-region saliency meaningful.
+- **Study-report v2 with E3 integration (Phase 10).** The existing report-assistant
+  reports the **honest winner (E2)** with cross-model checks; wiring a non-winning E3
+  into the report adds surface area without improving the finding it would present.
+- **Benchmark/optimization sweep (Phase 12).** Training is already fast on the target
+  GPU (localizer ~10 s/epoch; E3 ~25 s/epoch unfrozen); no optimization was needed to
+  obtain these results, so none was manufactured.
+
+These are decisions driven by the data, consistent with the project rule: *if E3 does
+not win, keep E0/E2 as the honest winners and say why.*
