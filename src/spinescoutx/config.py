@@ -71,6 +71,9 @@ class TrainConfig:
     weight_decay: float = 1e-4
     amp: bool = True
     freeze_backbone_epochs: int = 2
+    # LR multiplier applied when the backbone unfreezes (gentle fine-tuning of the
+    # pretrained backbone; avoids the unfreeze "shock" of training it at full lr).
+    backbone_unfreeze_lr_scale: float = 0.2
     early_stop_patience: int = 5
     class_weighted_loss: bool = True
     weighted_sampler: bool = False

@@ -32,7 +32,7 @@ train:
   weight_decay: 0.0001
   amp: true
   freeze_backbone_epochs: 2
-  early_stop_patience: 5
+  early_stop_patience: 7
   class_weighted_loss: true
   loss: weighted_ce
   monitor: val_weighted_logloss

@@ -435,7 +435,9 @@ def train_classifier(
             # backbone parameters are optimized for the remaining epochs.
             model.set_backbone_trainable(True)
             backbone_frozen = False
-            optimizer = build_optimizer(model, cfg.train.lr, cfg.train.weight_decay)
+            # Gentle LR for the pretrained backbone to avoid the unfreeze "shock".
+            finetune_lr = cfg.train.lr * cfg.train.backbone_unfreeze_lr_scale
+            optimizer = build_optimizer(model, finetune_lr, cfg.train.weight_decay)
             remaining = max(1, int(cfg.train.epochs) - epoch)
             scheduler = build_scheduler(optimizer, remaining, steps_per_epoch)
 
