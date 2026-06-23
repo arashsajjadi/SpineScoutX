@@ -302,6 +302,25 @@ def cmd_train_anatomy_guided(args: argparse.Namespace) -> int:
     )
 
 
+def cmd_train_anatomy_forced(args: argparse.Namespace) -> int:
+    from .training.train_classifier import train_classifier
+
+    cfg = _load_cfg(args.config)
+    if cfg.task != "anatomy_forced":
+        log.warning("config task=%s; forcing anatomy_forced for this command", cfg.task)
+        cfg.task = "anatomy_forced"
+    run = _resolve_run_dir(cfg, args.run_id)
+    result = train_classifier(cfg, run, json_logs=args.json)
+    return _ok(
+        args,
+        {
+            "run_dir": str(run),
+            "best": result.get("best", {}),
+            "checkpoint": result.get("checkpoint"),
+        },
+    )
+
+
 def cmd_evaluate(args: argparse.Namespace) -> int:
     run = Path(args.run)
     cfg_path = run / "config.json"
@@ -531,6 +550,11 @@ def build_parser() -> argparse.ArgumentParser:
             "train-anatomy-guided",
             cmd_train_anatomy_guided,
             "Train the anatomy-guided classifier (E1)",
+        ),
+        (
+            "train-anatomy-forced",
+            cmd_train_anatomy_forced,
+            "Train the anatomy-forced region-pooling classifier (E2)",
         ),
     ]:
         sp = add(name, handler, help_text)

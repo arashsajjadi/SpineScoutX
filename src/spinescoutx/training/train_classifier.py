@@ -59,13 +59,21 @@ log = get_logger()
 _MANIFEST_NAMES: tuple[str, ...] = ("manifest.parquet", "manifest.csv")
 
 
+_GUIDED_KINDS = ("anatomy_guided_classifier", "anatomy_forced_classifier")
+_GUIDED_TASKS = ("anatomy_guided", "anatomy_forced")
+
+
 def _is_guided(cfg: Config) -> bool:
-    """True when this run trains the anatomy-guided model (task or model kind)."""
-    return cfg.task == "anatomy_guided" or cfg.model.kind == "anatomy_guided_classifier"
+    """True when the model consumes anatomy in its forward (guided or forced)."""
+    return cfg.task in _GUIDED_TASKS or cfg.model.kind in _GUIDED_KINDS
 
 
 def _build_model(cfg: Config) -> torch.nn.Module:
-    """Build the image-only or anatomy-guided classifier from the config."""
+    """Build the image-only / anatomy-guided / anatomy-forced classifier from config."""
+    if cfg.task == "anatomy_forced" or cfg.model.kind == "anatomy_forced_classifier":
+        from ..models.anatomy_forced_classifier import build_anatomy_forced_classifier
+
+        return build_anatomy_forced_classifier(cfg.model)
     if _is_guided(cfg):
         return build_anatomy_guided_classifier(cfg.model)
     return build_image_classifier(cfg.model)
@@ -358,13 +366,22 @@ def _checkpoint_payload(
     }
 
 
-def _monitor_value(report: dict[str, Any], monitor: str) -> float:
+def _monitor_value(
+    report: dict[str, Any], monitor: str, severe_aware_lambda: float = 0.08
+) -> float:
     """Resolve the monitored scalar from a report dict.
 
-    ``cfg.train.monitor`` uses a ``val_`` prefix (e.g. ``val_weighted_logloss``);
-    map it onto the report keys produced by ``classification_report_dict``.
+    ``cfg.train.monitor`` uses a ``val_`` prefix (e.g. ``val_weighted_logloss``).
+    The special monitor ``val_severe_aware`` returns
+    ``weighted_logloss + severe_aware_lambda * severe_fnr`` (min is better) so model
+    selection trades a little aggregate log loss for fewer severe false negatives.
     """
     key = monitor[len("val_") :] if monitor.startswith("val_") else monitor
+    if key == "severe_aware":
+        value = float(report["weighted_logloss"]) + severe_aware_lambda * float(
+            report["severe_fnr"]
+        )
+        return float("inf") if np.isnan(value) else value
     aliases = {
         "weighted_logloss": "weighted_logloss",
         "logloss": "weighted_logloss",
@@ -454,7 +471,8 @@ def train_classifier(
             guided,
         )
         report, _, _ = _evaluate(model, val_loader, device, guided)
-        monitor_value = _monitor_value(report, cfg.train.monitor)
+        sa_lambda = float(cfg.eval.get("severe_aware_lambda", 0.08)) if cfg.eval else 0.08
+        monitor_value = _monitor_value(report, cfg.train.monitor, sa_lambda)
 
         epoch_record = {
             "epoch": epoch,

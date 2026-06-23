@@ -1,0 +1,48 @@
+# E2 (REAL) — anatomy-forced region-pooling classifier.
+# Anatomy masks DEFINE regions; features are masked-pooled over canal/disc/vertebra
+# so the model cannot ignore anatomy the way the v0.4 concat model did.
+# Requires: data/cache/rsna (crops) + data/cache/rsna_anatomy_priors (priors).
+name: e2_anatomy_forced_roi_real
+seed: 1337
+task: anatomy_forced
+output_root: runs
+
+data:
+  rsna_cache: data/cache/rsna
+  anatomy_cache: data/cache/rsna_anatomy_priors
+  synthetic: false
+  crop_size: 224
+  use_25d: true
+  num_workers: 8
+  split_seed: 1337        # MUST match E0/E1 for a fair comparison
+  val_fraction: 0.2
+
+model:
+  kind: anatomy_forced_classifier
+  backbone: convnext_tiny
+  pretrained: true
+  in_chans: 3
+  anatomy_in_chans: 3     # disc / canal / vertebra region masks
+  num_classes: 3
+  embed_dim: 16
+  dropout: 0.2
+  global_feature_dropout: 0.5   # force reliance on region-pooled features
+
+train:
+  epochs: 20
+  batch_size: 32
+  lr: 0.0003
+  weight_decay: 0.0001
+  amp: true
+  freeze_backbone_epochs: 2
+  backbone_unfreeze_lr_scale: 0.2
+  early_stop_patience: 7
+  class_weighted_loss: true
+  loss: weighted_ce
+  monitor: val_severe_aware    # weighted_logloss + lambda*severe_fnr (see training.optim)
+  monitor_mode: min
+  device: auto
+
+eval:
+  compare_against: runs/e0_baseline_real
+  severe_aware_lambda: 0.08

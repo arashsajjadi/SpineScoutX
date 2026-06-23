@@ -61,6 +61,8 @@ class ModelConfig:
     embed_dim: int = 16
     dropout: float = 0.2
     fusion: str = "concat"
+    # anatomy-forced model: drop global feature during training to force region use
+    global_feature_dropout: float = 0.5
 
 
 @dataclass
