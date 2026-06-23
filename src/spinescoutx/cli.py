@@ -244,6 +244,28 @@ def cmd_prepare_anatomy_priors(args: argparse.Namespace) -> int:
     return _ok(args, summary)
 
 
+def cmd_build_morphology(args: argparse.Namespace) -> int:
+    from .features.morphology import FEATURE_NAMES, build_morphology_table
+    from .utils.paths import ensure_dir
+
+    out = ensure_dir(args.out)
+    table = build_morphology_table(args.anatomy_cache, args.crop_manifest, out, limit=args.limit)
+    summary = {
+        "n_rows": int(len(table)),
+        "n_features": len(FEATURE_NAMES),
+        "anatomy_cache": str(args.anatomy_cache),
+        "crop_manifest": str(args.crop_manifest),
+        "out": str(out),
+    }
+    if len(table):
+        import json
+
+        rep = ensure_dir("outputs/real")
+        (rep / "morphology_report.json").write_text(json.dumps(summary, indent=2, sort_keys=True))
+    log.info("morphology features: %s", summary)
+    return _ok(args, summary)
+
+
 def cmd_build_study_index(args: argparse.Namespace) -> int:
     from .data.study_registry import build_study_index, view_distribution
     from .utils.paths import ensure_dir
@@ -698,6 +720,14 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--seed", type=int, default=1337)
     sp.add_argument("--limit-studies", type=int, default=None, help="cap number of studies")
     sp.add_argument("--dry-run", action="store_true", help="report the plan without decoding")
+
+    sp = add(
+        "build-morphology", cmd_build_morphology, "Derive morphology features from anatomy masks"
+    )
+    sp.add_argument("--anatomy-cache", required=True)
+    sp.add_argument("--crop-manifest", required=True)
+    sp.add_argument("--out", required=True)
+    sp.add_argument("--limit", type=int, default=None)
 
     sp = add("build-study-index", cmd_build_study_index, "Build study-level series/view registry")
     sp.add_argument("--rsna-root", required=True)
