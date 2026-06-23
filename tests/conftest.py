@@ -67,3 +67,70 @@ def overconfident_logits() -> tuple[np.ndarray, np.ndarray]:
 def severe_index() -> int:
     """The integer index of the severe severity class."""
     return SEVERE_INDEX
+
+
+# --- Shared synthetic RSNA fixtures (real DICOMs via pydicom) --------------------
+RSNA_STUDIES = ["1001", "1002"]
+RSNA_SERIES = "9001"
+RSNA_INSTANCES = [1, 2, 3, 4, 5]
+
+
+def write_synthetic_dicom(path: Path, arr: np.ndarray) -> None:
+    """Write a minimal valid MR DICOM (pydicom imported lazily)."""
+    from pydicom.dataset import FileDataset, FileMetaDataset
+    from pydicom.uid import ExplicitVRLittleEndian, MRImageStorage, generate_uid
+
+    meta = FileMetaDataset()
+    meta.MediaStorageSOPClassUID = MRImageStorage
+    meta.MediaStorageSOPInstanceUID = generate_uid()
+    meta.TransferSyntaxUID = ExplicitVRLittleEndian
+    ds = FileDataset(str(path), {}, file_meta=meta, preamble=b"\0" * 128)
+    ds.SOPClassUID = MRImageStorage
+    ds.Rows, ds.Columns = arr.shape
+    ds.BitsAllocated = 16
+    ds.BitsStored = 16
+    ds.HighBit = 15
+    ds.PixelRepresentation = 0
+    ds.SamplesPerPixel = 1
+    ds.PhotometricInterpretation = "MONOCHROME2"
+    ds.PixelData = arr.astype(np.uint16).tobytes()
+    ds.save_as(str(path), little_endian=True, implicit_vr=False)
+
+
+def make_synthetic_rsna_root(root: Path) -> None:
+    """Create a tiny but complete RSNA tree (DICOMs + the three CSVs)."""
+    import pandas as pd
+
+    images = root / "train_images"
+    g = np.random.default_rng(0)
+    for study in RSNA_STUDIES:
+        sdir = images / study / RSNA_SERIES
+        sdir.mkdir(parents=True)
+        for inst in RSNA_INSTANCES:
+            write_synthetic_dicom(
+                sdir / f"{inst}.dcm", (g.random((64, 64)) * 1000).astype(np.uint16)
+            )
+
+    pd.DataFrame(
+        {
+            "study_id": RSNA_STUDIES,
+            "spinal_canal_stenosis_l1_l2": ["Normal/Mild", "Severe"],
+            "left_neural_foraminal_narrowing_l1_l2": ["Moderate", "Normal/Mild"],
+        }
+    ).to_csv(root / "train.csv", index=False)
+
+    coord_rows = []
+    for study in RSNA_STUDIES:
+        coord_rows.append([study, RSNA_SERIES, 3, "Spinal Canal Stenosis", "L1/L2", 32, 32])
+        coord_rows.append(
+            [study, RSNA_SERIES, 3, "Left Neural Foraminal Narrowing", "L1/L2", 20, 40]
+        )
+    pd.DataFrame(
+        coord_rows,
+        columns=["study_id", "series_id", "instance_number", "condition", "level", "x", "y"],
+    ).to_csv(root / "train_label_coordinates.csv", index=False)
+
+    pd.DataFrame(
+        [[s, RSNA_SERIES, "Sagittal T2/STIR"] for s in RSNA_STUDIES],
+        columns=["study_id", "series_id", "series_description"],
+    ).to_csv(root / "train_series_descriptions.csv", index=False)

@@ -68,14 +68,16 @@ left/right subarticular stenosis. See [`docs/data_setup.md`](docs/data_setup.md)
 | Experiment | Data | Status |
 |---|---|---|
 | **E4 — SPIDER anatomy segmentation** | SPIDER (CC BY 4.0) | ✅ **REAL** — mean Dice **0.884**, canal **0.902** on SPIDER's official val split |
-| E0 / E1 / E2-E3 — RSNA grading + anatomy priors | RSNA | ⛔ **blocked** — needs your Kaggle credentials + competition-rule acceptance |
+| E0 / E1 / E2-E3 — RSNA grading + anatomy priors | RSNA (LumbarDISC) | 🟡 **code complete + tested; data-gated** — pipeline runs end-to-end on synthetic DICOM fixtures; real run needs your Kaggle/MIRA credentials |
 
-E4 was trained on the real SPIDER dataset; see
-[`docs/technical_report.md`](docs/technical_report.md) §9.1. The RSNA grading
-experiments (the headline anatomy-prior question) are **not yet run on real data**
-and their numbers here are **synthetic smoke only**. See
-[`docs/data_status.md`](docs/data_status.md) for exact RSNA acquisition steps, and
-check readiness with `spinescoutx doctor --data`.
+E4 was trained on the real SPIDER dataset (see
+[`docs/technical_report.md`](docs/technical_report.md) §9.1). The full RSNA path
+(`prepare-rsna` crops → manifest, `prepare-anatomy-priors` SPIDER→RSNA transfer,
+E0/E1/ablation) is **implemented and regression-tested** but RSNA itself is
+distributed only via Kaggle and RSNA MIRA — **both require your credentials**.
+Once obtained, the whole study runs with the command sequence in
+[`docs/data_status.md`](docs/data_status.md). The RSNA numbers shown here remain
+**synthetic smoke only** until then. Check readiness: `spinescoutx doctor --data`.
 
 ## 6. Quickstart
 

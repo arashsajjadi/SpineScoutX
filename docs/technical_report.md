@@ -10,15 +10,22 @@ Mixed real + synthetic. Read the provenance of every number:
 - **E4 — SPIDER anatomy segmentation: REAL.** Trained and evaluated on the real
   SPIDER dataset (Zenodo 10159290, CC BY 4.0) using SPIDER's **official** split.
   Results in §9.1 and §13.1 are real. See [`data_status.md`](data_status.md).
-- **E0 / E1 / E2 / E3 / RSNA-AEC: BLOCKED (synthetic only).** The RSNA grading
-  dataset is **not present** — it requires Kaggle credentials + competition-rule
-  acceptance under the user's account. No real RSNA training was run. The E0/E1/
-  ablation/calibration numbers in §9.2 come from the **synthetic smoke** and are
-  **not research results**; they only prove the metric plumbing works.
+- **E0 / E1 / E2 / E3 / RSNA-AEC: code COMPLETE & tested; data BLOCKED.** The RSNA
+  (LumbarDISC) grading dataset is **not present** — it is distributed only via
+  Kaggle (auth + competition-rule acceptance) and RSNA MIRA (account login),
+  **both of which require the user's credentials** (verified: MIRA `/api/datasets/6`
+  → 302 → `/login`). No real RSNA training was run. **However, the full RSNA
+  execution path is now implemented and regression-tested on synthetic DICOM
+  fixtures**: `prepare-rsna` (DICOM → 2.5D crops → manifest → patient split),
+  `prepare-anatomy-priors` (SPIDER-E4 → RSNA anatomy-prior transfer), and E0/E1/
+  ablation reading the real manifest (`tests/test_rsna_prepare.py`,
+  `test_anatomy_priors.py`, `test_real_pipeline_smoke.py`). The E0/E1 numbers in
+  §9.2 are still **synthetic smoke**, not research results.
 
-The headline question (do anatomy priors help RSNA grading?) therefore remains
-**untested on real data**. To unblock it, follow [`data_status.md`](data_status.md)
-to obtain RSNA, then run E0 → anatomy-prior generation → E1 → ablation.
+The headline question (do anatomy priors help RSNA grading?) remains **untested on
+real data** only because the data is credential-gated. Once RSNA is obtained
+(see [`data_status.md`](data_status.md)), the whole study runs with no code
+changes via the documented command sequence.
 
 ## 1. Abstract
 

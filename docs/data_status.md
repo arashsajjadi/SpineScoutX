@@ -38,10 +38,38 @@ spinescoutx doctor --data --rsna-root data/raw/rsna --spider-root data/raw/spide
    cd data/raw/rsna && unzip -q '*.zip'
    ```
 7. `pip install "spinescoutx[dicom]"` (pydicom is needed to decode DICOMs).
-8. Re-run `spinescoutx doctor --data` and then `spinescoutx prepare-rsna ...`.
+8. Re-run `spinescoutx doctor --data` to confirm RSNA is READY.
 
 > The maintainer/agent must **not** download RSNA from unofficial mirrors and must
 > not commit any DICOMs, CSV labels, crops, or caches.
+
+### RSNA execution path: built and tested; only the data is missing
+
+The complete RSNA pipeline is **implemented and regression-tested** on synthetic
+DICOM fixtures (`tests/test_rsna_prepare.py`, `test_anatomy_priors.py`,
+`test_real_pipeline_smoke.py`). Once RSNA is in place, the **entire** E0→E1→ablation
+study runs with these commands (no code changes needed):
+
+```bash
+# E0 — image-only baseline
+spinescoutx prepare-rsna --rsna-root data/raw/rsna --out data/cache/rsna
+spinescoutx train-classifier --config configs/real_e0_baseline_rsna.yaml
+spinescoutx evaluate --run runs/e0_baseline_real
+
+# E4 segmenter is already trained (real). Generate RSNA anatomy priors from it:
+spinescoutx prepare-anatomy-priors \
+    --rsna-cache data/cache/rsna \
+    --segmenter-run runs/e4_segmentation_spider_real \
+    --out data/cache/rsna_anatomy_priors
+
+# E1 — anatomy-guided, then E2/E3 counterfactual ablations
+spinescoutx train-anatomy-guided --config configs/real_e1_anatomy_guided.yaml
+spinescoutx evaluate --run runs/e1_anatomy_guided_real
+spinescoutx ablate --config configs/ablation.yaml      # correct/shuffled/zero/noise
+spinescoutx report --study-id <ID> --run runs/e1_anatomy_guided_real
+```
+
+Use `--limit-studies N` / `--dry-run` on `prepare-rsna` for a fast sanity pass first.
 
 ## SPIDER Lumbar Spine Segmentation — DOWNLOADED; E4 trained ✅
 

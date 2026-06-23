@@ -145,22 +145,32 @@ def cmd_prepare_rsna(args: argparse.Namespace) -> int:
             missing=report.missing,
             present=report.present,
         )
-    # Real ingestion pipeline (only runs when data is actually present).
-    from .data.rsna_index import build_series_index
-    from .data.rsna_labels import load_coordinates, load_labels
+    # Real crop-extraction pipeline (only runs when data is actually present).
+    from .data.rsna_prepare import prepare_rsna
     from .utils.paths import ensure_dir
 
     out = ensure_dir(args.out)
-    series = build_series_index(args.rsna_root)
-    labels = load_labels(args.rsna_root)
-    coords = load_coordinates(args.rsna_root)
-    summary = {
-        "out": str(out),
-        "n_series": int(len(series)),
-        "n_label_rows": int(len(labels)),
-        "n_coord_rows": int(len(coords)),
-    }
-    log.info("RSNA prepared: %s", summary)
+    summary = prepare_rsna(
+        args.rsna_root,
+        out,
+        crop_size=args.crop_size,
+        use_25d=not args.no_25d,
+        val_fraction=args.val_fraction,
+        seed=args.seed,
+        limit_studies=args.limit_studies,
+        dry_run=args.dry_run,
+    )
+    if not args.dry_run:
+        import json
+
+        rep = ensure_dir("outputs/real")
+        (rep / "rsna_manifest_report.json").write_text(
+            json.dumps(summary, indent=2, sort_keys=True)
+        )
+    log.info(
+        "RSNA prepared: %s",
+        {k: summary.get(k) for k in ("n_studies", "n_findings", "n_crops_cached", "crop_split")},
+    )
     return _ok(args, summary)
 
 
@@ -203,6 +213,33 @@ def cmd_prepare_spider(args: argparse.Namespace) -> int:
     log.info(
         "SPIDER prepared: %s",
         {k: summary.get(k) for k in ("n_patients", "n_volumes", "n_slices_cached", "slice_split")},
+    )
+    return _ok(args, summary)
+
+
+def cmd_prepare_anatomy_priors(args: argparse.Namespace) -> int:
+    from .data.anatomy_priors import generate_anatomy_priors
+    from .utils.paths import ensure_dir
+
+    out = ensure_dir(args.out)
+    summary = generate_anatomy_priors(
+        args.rsna_cache,
+        args.segmenter_run,
+        out,
+        limit_crops=args.limit_crops,
+        dry_run=args.dry_run,
+        device=args.device,
+    )
+    if not args.dry_run:
+        import json
+
+        rep = ensure_dir("outputs/real")
+        (rep / "anatomy_prior_report.json").write_text(
+            json.dumps(summary, indent=2, sort_keys=True)
+        )
+    log.info(
+        "anatomy priors: %s",
+        {k: summary.get(k) for k in ("n_crops", "priors_written", "skipped")},
     )
     return _ok(args, summary)
 
@@ -423,9 +460,27 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--rsna-root", default="data/raw/rsna", help="RSNA root for --data check")
     sp.add_argument("--spider-root", default="data/raw/spider", help="SPIDER root for --data check")
 
-    sp = add("prepare-rsna", cmd_prepare_rsna, "Index/crop RSNA data into a cache")
+    sp = add("prepare-rsna", cmd_prepare_rsna, "Extract localizer crops + manifest from RSNA")
     sp.add_argument("--rsna-root", required=True)
     sp.add_argument("--out", required=True)
+    sp.add_argument("--crop-size", type=int, default=224)
+    sp.add_argument("--no-25d", action="store_true", help="single-slice crops instead of 2.5D")
+    sp.add_argument("--val-fraction", type=float, default=0.2)
+    sp.add_argument("--seed", type=int, default=1337)
+    sp.add_argument("--limit-studies", type=int, default=None, help="cap number of studies")
+    sp.add_argument("--dry-run", action="store_true", help="report the plan without decoding")
+
+    sp = add(
+        "prepare-anatomy-priors",
+        cmd_prepare_anatomy_priors,
+        "Generate RSNA anatomy priors from the SPIDER segmenter (E4->RSNA transfer)",
+    )
+    sp.add_argument("--rsna-cache", required=True)
+    sp.add_argument("--segmenter-run", required=True)
+    sp.add_argument("--out", required=True)
+    sp.add_argument("--limit-crops", type=int, default=None)
+    sp.add_argument("--device", default="auto")
+    sp.add_argument("--dry-run", action="store_true")
 
     sp = add("prepare-spider", cmd_prepare_spider, "Cache SPIDER slices + seg index")
     sp.add_argument("--spider-root", required=True)

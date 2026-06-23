@@ -183,7 +183,9 @@ def build_class_weights(targets: Sequence[int]) -> torch.Tensor:
     total = counts.sum()
     if total == 0:
         return torch.ones(NUM_SEVERITY_CLASSES, dtype=torch.float32)
-    weights = np.where(counts > 0, total / (NUM_SEVERITY_CLASSES * counts), 0.0)
+    # Absent classes get weight 0; guard the division so they don't warn on 1/0.
+    with np.errstate(divide="ignore", invalid="ignore"):
+        weights = np.where(counts > 0, total / (NUM_SEVERITY_CLASSES * counts), 0.0)
     nonzero_sum = weights.sum()
     if nonzero_sum > 0:
         present = (counts > 0).sum()

@@ -1,0 +1,50 @@
+# E1 (REAL) — anatomy-guided classifier on real RSNA crops + SPIDER-derived priors.
+# Requires:
+#   1) prepare-rsna  -> data/cache/rsna/manifest.parquet
+#   2) train-segmenter (E4) -> runs/e4_segmentation_spider_real/best.pt
+#   3) prepare-anatomy-priors -> data/cache/rsna_anatomy_priors/<crop>.npy
+# split_seed MUST match E0 for a fair comparison.
+name: e1_anatomy_guided_real
+seed: 1337
+task: anatomy_guided
+output_root: runs
+
+data:
+  rsna_cache: data/cache/rsna
+  anatomy_cache: data/cache/rsna_anatomy_priors   # predicted anatomy priors (E4 -> RSNA)
+  synthetic: false
+  crop_size: 224
+  use_25d: true
+  num_workers: 8
+  split_seed: 1337
+  val_fraction: 0.2
+
+model:
+  kind: anatomy_guided_classifier
+  backbone: convnext_tiny
+  pretrained: true
+  in_chans: 3
+  anatomy_in_chans: 3        # disc / canal / vertebra prior channels
+  num_classes: 3
+  use_level_embedding: true
+  use_condition_embedding: true
+  embed_dim: 16
+  dropout: 0.2
+  fusion: concat
+
+train:
+  epochs: 20
+  batch_size: 32
+  lr: 0.0003
+  weight_decay: 0.0001
+  amp: true
+  freeze_backbone_epochs: 2
+  early_stop_patience: 5
+  class_weighted_loss: true
+  loss: weighted_ce
+  monitor: val_weighted_logloss
+  monitor_mode: min
+  device: auto
+
+eval:
+  compare_against: runs/e0_baseline_real
