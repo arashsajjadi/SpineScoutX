@@ -30,6 +30,10 @@ def _dicom_path(images_dir: Path, study: str, series: str, instance: int) -> Pat
     return images_dir / str(study) / str(series) / f"{instance}.dcm"
 
 
+def _crop_rel(study: str, series: str, inst: int, level: str, cond: str) -> str:
+    return f"crops/{study}_{series}_{inst}_{level}_{cond}.npy"
+
+
 def _decode_series_slices(
     images_dir: Path, study: str, series: str, instances: set[int]
 ) -> dict[int, object]:
@@ -135,11 +139,22 @@ def prepare_rsna(
 
     for (study, series_id), rows in by_series.items():
         instances = {int(r["instance_number"]) for r in rows}
-        slices = _decode_series_slices(images_dir, study, series_id, instances)
+        # Cache-first resume: skip the (expensive) series decode when every crop
+        # for this series is already on disk.
+        all_cached = all(
+            (
+                out
+                / _crop_rel(study, series_id, int(r["instance_number"]), r["level"], r["condition"])
+            ).exists()
+            for r in rows
+        )
+        slices = (
+            {} if all_cached else _decode_series_slices(images_dir, study, series_id, instances)
+        )
         for r in rows:
             inst = int(r["instance_number"])
             level, cond = str(r["level"]), str(r["condition"])
-            crop_rel = f"crops/{study}_{series_id}_{inst}_{level}_{cond}.npy"
+            crop_rel = _crop_rel(study, series_id, inst, level, cond)
             crop_abs = out / crop_rel
             pad_note = ""
             if not crop_abs.exists():

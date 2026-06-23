@@ -132,6 +132,9 @@ def build_classification_loaders(cfg: Config) -> tuple[DataLoader, DataLoader]:
         anatomy_root = Path(cfg.data.anatomy_cache) if cfg.data.anatomy_cache else None
         manifest_path = _find_rsna_manifest(cache_root)
         manifest_df = read_manifest(manifest_path)
+        # Drop unlabeled crops (severity_index < 0) so they never reach the loss.
+        if "severity_index" in manifest_df.columns:
+            manifest_df = manifest_df[manifest_df["severity_index"] >= 0].reset_index(drop=True)
         train_ds = RsnaCropDataset(
             _split_frame(manifest_df, "train"),
             cache_root=cache_root,
