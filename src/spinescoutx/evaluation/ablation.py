@@ -35,6 +35,7 @@ from ..models.anatomy_guided_classifier import (
     AnatomyGuidedClassifier,
     build_anatomy_guided_classifier,
 )
+from ..training.optim import select_device
 from ..utils.logging import emit_json, get_logger
 from ..utils.paths import ensure_dir, run_dir
 from ..utils.seed import seed_everything
@@ -192,20 +193,24 @@ def _build_real_val_loader(cfg: Config) -> DataLoader:
             "Build the crop cache first or use synthetic data."
         )
     manifest = read_manifest(manifest_path)
-    val_manifest = manifest[manifest["split"] == "val"].reset_index(drop=True)
+    val_manifest = manifest[manifest["split"] == "val"]
+    if "severity_index" in val_manifest.columns:  # drop unlabeled crops
+        val_manifest = val_manifest[val_manifest["severity_index"] >= 0]
+    val_manifest = val_manifest.reset_index(drop=True)
+    anatomy_root = cfg.data.anatomy_cache or cfg.data.spider_cache
     dataset = RsnaCropDataset(
         manifest_df=val_manifest,
         cache_root=cfg.data.rsna_cache,
         crop_size=int(cfg.data.crop_size),
         use_25d=bool(cfg.data.use_25d),
         guided=True,
-        anatomy_cache_root=cfg.data.spider_cache,
+        anatomy_cache_root=anatomy_root,
     )
     return DataLoader(
         dataset,
         batch_size=int(cfg.train.batch_size),
         shuffle=False,
-        num_workers=0,
+        num_workers=max(0, int(cfg.data.num_workers)),
     )
 
 
@@ -254,8 +259,13 @@ def _evaluate_mode(
     *,
     seed: int,
     compute_aec: bool,
+    aec_max_samples: int | None = 800,
 ) -> dict[str, Any]:
-    """Evaluate the model over ``loader`` with the anatomy prior perturbed."""
+    """Evaluate the model over ``loader`` with the anatomy prior perturbed.
+
+    Classification metrics use the full loader; AEC (which needs a Grad-CAM pass
+    per sample) is estimated on at most ``aec_max_samples`` samples for speed.
+    """
     model.eval()
     all_probs: list[np.ndarray] = []
     all_targets: list[np.ndarray] = []
@@ -284,6 +294,8 @@ def _evaluate_mode(
         # interest) regardless of which prior the model saw. It needs gradients,
         # so it runs outside the no_grad block.
         for batch in loader:
+            if aec_max_samples is not None and len(aec_values) >= aec_max_samples:
+                break
             image = batch["image"].to(device).float()
             anatomy = batch["anatomy"].to(device).float()
             level_idx = batch["level_idx"].to(device).long()
@@ -326,7 +338,7 @@ def run_ablation(
     ``{mode: classification_report_dict (+ optional aec_mean)}``.
     """
     seed_everything(cfg.seed)
-    device = torch.device("cpu")
+    device = select_device(cfg.train.device)
 
     out_dir = ensure_dir(run_dir)
     modes = _resolve_modes(cfg)
@@ -334,6 +346,7 @@ def run_ablation(
 
     ablation_cfg = cfg.ablation if isinstance(cfg.ablation, dict) else {}
     compute_aec = bool(ablation_cfg.get("compute_aec", True))
+    aec_max_samples = ablation_cfg.get("aec_max_samples", 800)
 
     results: dict[str, Any] = {}
     for mode in modes:
@@ -344,6 +357,7 @@ def run_ablation(
             device,
             seed=cfg.seed,
             compute_aec=compute_aec,
+            aec_max_samples=aec_max_samples,
         )
         results[mode] = report
         if json_logs:
