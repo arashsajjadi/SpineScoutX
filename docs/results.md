@@ -151,6 +151,43 @@ study-level inference system. v0.6 attacks this directly:
 The goal is a real study-level reasoner; results are reported with provenance and
 without spin (if auto-localization bottlenecks grading, we say so).
 
+## v0.6 / v0.7 — study-level results (REAL; full writeup in `study_level_v06.md`)
+
+**Headline honesty result — the oracle→auto gap.** A disc-level heatmap localizer
+(median 2.5 px, crop-hit@224 0.998) replaces GT coordinates. On 1955 matched canal
+val (study, level) pairs, removing GT coordinates costs:
+
+| model | weighted-logloss | severe recall |
+|---|---|---|
+| E0 | 0.326 → 0.554 (**+0.228**) | 0.828 → 0.644 (**−0.184**) |
+| E2 | 0.351 → 0.651 (**+0.300**) | 0.759 → 0.621 (**−0.138**) |
+
+So the strong v0.4–0.5 numbers are an **oracle upper bound**; a deployable
+localizer-driven system is **14–18 pp weaker on severe recall**. (Full provenance in
+`coordinate_dependency_audit.md`.)
+
+**E3 study-level multi-view anatomy-graph reasoner** (per-level image + anatomy +
+morphology tokens, cross-level attention; canal, oracle crops, same split). Severe-
+first frontier on 1955 shared canal val nodes:
+
+| model | severe AUROC | severe AP | recall@FAR≤5% | recall@FAR≤10% | ECE |
+|---|---|---|---|---|---|
+| E0 image | 0.978 | 0.676 | 0.897 | 0.954 | 0.034 |
+| **E2 anatomy-forced** | **0.979** | **0.735** | **0.931** | 0.954 | 0.036 |
+| E3 graph | 0.972 | 0.681 | 0.828 | **0.966** | **0.023** |
+
+**Honest verdict: E2 wins the severe-first frontier on canal.** E3 is competitive and
+best-calibrated but does not beat E2. The ablation shows the **image stream carries
+nearly all discriminative signal** (image-only AUROC 0.978 = best), **cross-level
+attention does not help** (full 0.972 < no-graph 0.977 < image-only 0.978), and the
+anatomy/morphology streams are a real-but-weak interpretable signal (anatomy+morph
+with no pixels → AUROC 0.884; morphology-only → 0.782) whose main contribution is
+calibration. The multi-view graph's genuine promise (axial views, foraminal/
+subarticular) needs an axial localizer and is staged as explicit future work, not
+faked. External-literature context: `external_validation.md` (E3 canal AUROC 0.972 ≈
+M-SCAN's published 0.971; localize-then-classify and severe-recall@fixed-FAR are both
+field-standard; the SPIDER→RSNA prior and anatomy-mask graph appear novel).
+
 ## Honest interpretation
 - **Did anatomy priors help classification?** Not meaningfully — a <1% log-loss /
   macro-F1 edge that the ablation shows is **not** due to anatomy; severe recall is
