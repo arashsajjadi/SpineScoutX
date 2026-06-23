@@ -30,6 +30,9 @@ say() { echo "[$(ts)] $*"; }
 # Skips when the marker exists; otherwise runs, tees a log, records status+seconds.
 run_step() {
   local name="$1" marker="$2"; shift 2
+  if [[ -z "${IN_PROFILE[$name]:-}" ]]; then
+    return 0  # step not selected by the active --profile
+  fi
   if [[ -n "$marker" && -e "$marker" ]]; then
     say "SKIP  $name (found $marker)"
     echo "| $name | skipped | - | $marker |" >> "$TIMELINE"
@@ -74,15 +77,31 @@ fi
 PREP_ARGS=(--rsna-root "$RSNA_ROOT" --out "$RSNA_CACHE")
 [[ -n "$RSNA_LIMIT" ]] && PREP_ARGS+=(--limit-studies "$RSNA_LIMIT")
 
-run_step doctor              ""                                      spinescoutx doctor --data
-run_step prepare_rsna        "$RSNA_CACHE/manifest.parquet"          spinescoutx prepare-rsna "${PREP_ARGS[@]}"
-run_step train_e0            "runs/e0_baseline_real/best.pt"         spinescoutx train-classifier --config configs/real_e0_baseline_rsna.yaml
-run_step eval_e0             "runs/e0_baseline_real/predictions.json" spinescoutx evaluate --run runs/e0_baseline_real
-run_step anatomy_priors      "$PRIOR_CACHE/anatomy_prior_manifest.csv" spinescoutx prepare-anatomy-priors --rsna-cache "$RSNA_CACHE" --segmenter-run "$SEG_RUN" --out "$PRIOR_CACHE"
-run_step train_e1            "runs/e1_anatomy_guided_real/best.pt"   spinescoutx train-anatomy-guided --config configs/real_e1_anatomy_guided.yaml
-run_step eval_e1             "runs/e1_anatomy_guided_real/predictions.json" spinescoutx evaluate --run runs/e1_anatomy_guided_real
-run_step ablate              "runs/e3_ablation/ablation.json"        spinescoutx ablate --config configs/ablation.yaml
+# --- Profiles: which steps run. Usage: PROFILE=anatomy-forced bash <script>, or arg1.
+PROFILE="${PROFILE:-${1:-full}}"
+declare -A IN_PROFILE
+case "$PROFILE" in
+  baseline)        STEPS="doctor prepare_rsna train_e0 eval_e0" ;;
+  anatomy-forced)  STEPS="doctor prepare_rsna train_e0 eval_e0 anatomy_priors train_e2 eval_e2 ablate_e2" ;;
+  multiview)       STEPS="doctor prepare_rsna train_e0 eval_e0 anatomy_priors train_e2 eval_e2 ablate_e2" ;;  # E3 multi-view = future
+  full)            STEPS="doctor prepare_rsna train_e0 eval_e0 anatomy_priors train_e1 eval_e1 ablate train_e2 eval_e2 ablate_e2" ;;
+  *) say "ERROR: unknown profile '$PROFILE' (baseline|anatomy-forced|multiview|full)"; finalize 2 ;;
+esac
+for s in $STEPS; do IN_PROFILE[$s]=1; done
+say "profile=$PROFILE steps=[$STEPS]"
 
-say "All phases complete. See $TIMELINE and $STATE."
-say "Reports: spinescoutx report --study-id <ID> --run runs/e1_anatomy_guided_real"
+run_step doctor          ""                                          spinescoutx doctor --data
+run_step prepare_rsna    "$RSNA_CACHE/manifest.parquet"              spinescoutx prepare-rsna "${PREP_ARGS[@]}"
+run_step train_e0        "runs/e0_baseline_real/best.pt"             spinescoutx train-classifier --config configs/real_e0_baseline_rsna.yaml
+run_step eval_e0         "runs/e0_baseline_real/predictions.json"    spinescoutx evaluate --run runs/e0_baseline_real
+run_step anatomy_priors  "$PRIOR_CACHE/anatomy_prior_manifest.csv"   spinescoutx prepare-anatomy-priors --rsna-cache "$RSNA_CACHE" --segmenter-run "$SEG_RUN" --out "$PRIOR_CACHE"
+run_step train_e1        "runs/e1_anatomy_guided_real/best.pt"       spinescoutx train-anatomy-guided --config configs/real_e1_anatomy_guided.yaml
+run_step eval_e1         "runs/e1_anatomy_guided_real/predictions.json" spinescoutx evaluate --run runs/e1_anatomy_guided_real
+run_step ablate          "runs/e3_ablation/ablation.json"            spinescoutx ablate --config configs/ablation.yaml
+run_step train_e2        "runs/e2_anatomy_forced_roi_real/best.pt"   spinescoutx train-anatomy-forced --config configs/real_e2_anatomy_forced_roi.yaml
+run_step eval_e2         "runs/e2_anatomy_forced_roi_real/predictions.json" spinescoutx evaluate --run runs/e2_anatomy_forced_roi_real
+run_step ablate_e2       "runs/e2_forced_ablation/ablation.json"     spinescoutx ablate --config configs/ablation_e2_forced.yaml
+
+say "Profile '$PROFILE' complete. See $TIMELINE and $STATE."
+say "Reports: spinescoutx report-assistant --study-id <ID> --run runs/e2_anatomy_forced_roi_real --baseline-run runs/e0_baseline_real"
 finalize 0
