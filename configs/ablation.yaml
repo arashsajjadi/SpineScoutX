@@ -14,8 +14,11 @@ output_root: runs
 
 data:
   rsna_cache: data/cache/rsna
+  anatomy_cache: data/cache/rsna_anatomy_priors   # priors for the guided val loader
+  synthetic: false
   crop_size: 224
   use_25d: true
+  num_workers: 8
   split_seed: 1337
   val_fraction: 0.2
 
@@ -27,7 +30,7 @@ model:
   num_classes: 3
 
 ablation:
-  run: runs/e1_anatomy_guided        # trained anatomy-guided run to ablate
+  run: runs/e1_anatomy_guided_real   # trained anatomy-guided run to ablate
   modes: [correct, shuffled, zero, noise]
   shuffle_seed: 1337                 # deterministic cross-study shuffling
   split: val                         # evaluate on the held-out split

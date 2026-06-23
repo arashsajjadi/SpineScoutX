@@ -165,7 +165,11 @@ def _prepare_model(
         raise ValueError(
             "cfg.ablation['run'] must name a run directory when cfg.data.synthetic is False."
         )
-    checkpoint_path = run_dir(cfg.output_root, str(run_name)) / "best.pt"
+    # Accept either a full run path ("runs/e1_...") or a bare run id ("e1_...").
+    resolved = Path(str(run_name))
+    if not resolved.exists():
+        resolved = run_dir(cfg.output_root, str(run_name))
+    checkpoint_path = resolved / "best.pt"
     model = _load_checkpoint_model(cfg, checkpoint_path, device)
 
     # Real-data guided validation loaders live in data.datasets; importing them
