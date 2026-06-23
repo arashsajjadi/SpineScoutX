@@ -326,6 +326,22 @@ def cmd_train_localizer(args: argparse.Namespace) -> int:
     return _ok(args, {"run_dir": str(run), "best": result.get("best", {})})
 
 
+def cmd_train_multiview(args: argparse.Namespace) -> int:
+    from .training.train_multiview import train_multiview
+
+    cfg = _load_cfg(args.config)
+    if cfg.task != "multiview":
+        log.warning("config task=%s; forcing multiview for this command", cfg.task)
+        cfg.task = "multiview"
+    run = _resolve_run_dir(cfg, args.run_id)
+    best = train_multiview(cfg, run, json_logs=args.json)
+    log.info(
+        "E3 best: %s",
+        {k: best.get(k) for k in ("weighted_logloss", "severe_recall", "severe_auroc")},
+    )
+    return _ok(args, {"run_dir": str(run), "best": best})
+
+
 def cmd_localize_study(args: argparse.Namespace) -> int:
     from .data.auto_localize import load_localizer, localize_study
     from .data.rsna_index import RsnaPaths, build_series_index
@@ -821,6 +837,11 @@ def build_parser() -> argparse.ArgumentParser:
             "train-localizer",
             cmd_train_localizer,
             "Train the disc-level keypoint localizer (auto-crop, no GT at inference)",
+        ),
+        (
+            "train-multiview",
+            cmd_train_multiview,
+            "Train the study-level multi-view anatomy-graph reasoner (E3)",
         ),
     ]:
         sp = add(name, handler, help_text)

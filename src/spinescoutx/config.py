@@ -63,6 +63,15 @@ class ModelConfig:
     fusion: str = "concat"
     # anatomy-forced model: drop global feature during training to force region use
     global_feature_dropout: float = 0.5
+    # E3 multi-view anatomy-graph reasoner (kind="multiview_graph"): per-level tokens
+    # (image + anatomy + morphology streams) fused, then cross-level attention.
+    use_image: bool = True
+    use_anatomy: bool = True
+    use_morphology: bool = True
+    morph_dim: int = 14
+    graph_d_model: int = 256
+    graph_layers: int = 2
+    graph_heads: int = 4
 
 
 @dataclass
