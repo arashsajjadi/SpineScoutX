@@ -36,7 +36,7 @@ def test_load_each_config(path: Path) -> None:
     assert isinstance(cfg.model, ModelConfig)
     assert isinstance(cfg.train, TrainConfig)
     assert isinstance(cfg.name, str) and cfg.name
-    assert cfg.task in {"classify", "segment", "anatomy_guided", "ablate"}
+    assert cfg.task in {"classify", "segment", "anatomy_guided", "anatomy_forced", "ablate"}
     assert isinstance(cfg.seed, int)
     assert cfg.data.crop_size > 0
     assert cfg.model.num_classes >= 1 or cfg.model.num_anatomy_classes >= 1
