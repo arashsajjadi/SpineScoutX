@@ -342,6 +342,47 @@ def cmd_train_multiview(args: argparse.Namespace) -> int:
     return _ok(args, {"run_dir": str(run), "best": best})
 
 
+def cmd_severe_frontier(args: argparse.Namespace) -> int:
+    import json
+
+    from .evaluation.severe_frontier import (
+        build_frontier,
+        collect_crop_classifier,
+        collect_multiview,
+    )
+    from .training.optim import select_device
+    from .utils.paths import ensure_dir
+
+    device = select_device("auto")
+    models: dict[str, dict] = {}
+    if args.e0_run:
+        models["E0_image"] = collect_crop_classifier(args.e0_run, args.rsna_cache, None, device)
+    if args.e2_run:
+        models["E2_anatomy_forced"] = collect_crop_classifier(
+            args.e2_run, args.rsna_cache, args.anatomy_cache, device
+        )
+    if args.e3_run:
+        models["E3_multiview_graph"] = collect_multiview(args.e3_run, device)
+    if not models:
+        return _fail(args, "no runs given (need at least one of --e0-run/--e2-run/--e3-run)")
+
+    frontier = build_frontier(models)
+    out = ensure_dir(args.out)
+    (out / "severe_frontier.json").write_text(json.dumps(frontier, indent=2, default=str))
+    # compact log: severe AUROC/AP + recall at 10% false-alarm budget
+    for name, m in frontier["models"].items():
+        r10 = m["recall_at_far"].get("far<=0.1", {})
+        log.info(
+            "%s: severe_auroc=%.4f ap=%.4f  recall@FAR<=0.10=%.3f (thr=%.2f)",
+            name,
+            m.get("severe_auroc", float("nan")),
+            m.get("severe_ap", float("nan")),
+            r10.get("severe_recall", float("nan")),
+            r10.get("threshold", float("nan")),
+        )
+    return _ok(args, {"n_shared_nodes": frontier["n_shared_nodes"], "out": str(out)})
+
+
 def cmd_localize_study(args: argparse.Namespace) -> int:
     from .data.auto_localize import load_localizer, localize_study
     from .data.rsna_index import RsnaPaths, build_series_index
@@ -851,6 +892,18 @@ def build_parser() -> argparse.ArgumentParser:
     sp = add("evaluate", cmd_evaluate, "Evaluate a finished run")
     sp.add_argument("--run", required=True)
     sp.add_argument("--split", default="val")
+
+    sp = add(
+        "severe-frontier",
+        cmd_severe_frontier,
+        "Severe-first operating frontier across E0/E2/E3 on shared canal val nodes",
+    )
+    sp.add_argument("--e0-run", default=None)
+    sp.add_argument("--e2-run", default=None)
+    sp.add_argument("--e3-run", default=None)
+    sp.add_argument("--rsna-cache", default="data/cache/rsna")
+    sp.add_argument("--anatomy-cache", default="data/cache/rsna_anatomy_priors")
+    sp.add_argument("--out", default="outputs/real")
 
     sp = add("ablate", cmd_ablate, "Counterfactual anatomy ablations (E2/E3)")
     sp.add_argument("--config", required=True)
