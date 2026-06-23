@@ -10,6 +10,7 @@ Research-only. Not diagnostic.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -105,12 +106,17 @@ def prepare_rsna_auto_crops(
     crop_size: int = 224,
     use_25d: bool = True,
     limit_studies: int | None = None,
+    studies: Sequence[str] | None = None,
     device: str = "auto",
 ) -> dict[str, object]:
     """Auto-crop spinal-canal-stenosis findings at PREDICTED disc-level points.
 
     Uses labels (severity target) but NOT ``train_label_coordinates.csv``. Crops are
     centred on the localizer's predictions (``coordinate_source="auto"``).
+
+    ``studies`` overrides the internal split: pass an explicit study list (e.g. the
+    oracle-manifest val studies) to crop exactly those, enabling a matched
+    oracle-vs-auto comparison that does not depend on split-universe equality.
     """
     from ..training.optim import select_device
     from .dicom_io import normalize_intensity, read_dicom
@@ -129,9 +135,13 @@ def prepare_rsna_auto_crops(
     canal = labels[labels.condition == "spinal_canal_stenosis"].copy()
     series_index = build_series_index(rsna_root)
 
-    studies = sorted(canal.study_id.unique())
-    split_map = patient_level_split(studies, 0.2, 1337)
-    studies = [s for s in studies if split_map.get(s) == split]
+    if studies is not None:
+        wanted = {str(s) for s in studies}
+        studies = sorted(s for s in canal.study_id.unique() if str(s) in wanted)
+    else:
+        all_studies = sorted(canal.study_id.unique())
+        split_map = patient_level_split(all_studies, 0.2, 1337)
+        studies = [s for s in all_studies if split_map.get(s) == split]
     if limit_studies is not None:
         studies = studies[: int(limit_studies)]
 
