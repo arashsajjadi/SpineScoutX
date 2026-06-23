@@ -394,6 +394,73 @@ def cmd_report(args: argparse.Namespace) -> int:
     return _ok(args, {"json": str(json_path), "markdown": str(md_path)})
 
 
+def _finding_graph_for_study(run: Path, study_id: str) -> dict[str, Any] | None:
+    """Build a finding-graph dict for one study from a run's predictions.json."""
+    import json
+
+    from .reporting.finding_graph import build_finding_graph, finding_graph_to_dict
+
+    preds_path = run / "predictions.json"
+    if not preds_path.exists():
+        return None
+    preds = json.loads(preds_path.read_text())
+    study_preds = [
+        p for p in preds.get("predictions", []) if str(p.get("study_id")) == str(study_id)
+    ]
+    if not study_preds:
+        return None
+    graph = build_finding_graph(
+        study_id,
+        study_preds,
+        run_id=run.name,
+        model_version=__version__,
+        dataset_source=preds.get("dataset_source", "rsna"),
+    )
+    return finding_graph_to_dict(graph)
+
+
+def cmd_report_assistant(args: argparse.Namespace) -> int:
+    """Richer research-assistant report (deterministic graph + summary + optional LLM)."""
+
+    from .reporting.assistant import build_assistant_markdown
+    from .reporting.finding_graph import finding_graph_from_dict
+    from .reporting.json_report import write_json_report
+    from .utils.paths import ensure_dir
+
+    run = Path(args.run)
+    graph = _finding_graph_for_study(run, args.study_id)
+    if graph is None:
+        return _fail(args, f"No predictions for study {args.study_id} in {run}/predictions.json")
+    baseline_graph = (
+        _finding_graph_for_study(Path(args.baseline_run), args.study_id)
+        if args.baseline_run
+        else None
+    )
+
+    llm_text = None
+    if args.llm:
+        from .reporting.llm_report import generate_safe_llm_report
+
+        res = generate_safe_llm_report(graph, args.model, args.host)
+        llm_text = res["text"] if res["ok"] else None
+
+    md = build_assistant_markdown(
+        graph,
+        baseline_graph=baseline_graph,
+        baseline_name=Path(args.baseline_run).name if args.baseline_run else "baseline",
+        model_name=run.name,
+        llm_text=llm_text,
+    )
+    out_dir = ensure_dir(args.out or "outputs/real/reports")
+    json_path = write_json_report(
+        finding_graph_from_dict(graph), Path(out_dir) / f"{args.study_id}_assistant.json"
+    )
+    md_path = Path(out_dir) / f"{args.study_id}_assistant.md"
+    md_path.write_text(md)
+    log.info("assistant report: %s, %s", json_path, md_path)
+    return _ok(args, {"json": str(json_path), "markdown": str(md_path), "llm_used": bool(llm_text)})
+
+
 def cmd_report_llm(args: argparse.Namespace) -> int:
     """Optionally polish a finding-graph report with a local Ollama model (fail-closed)."""
     import json
@@ -572,6 +639,21 @@ def build_parser() -> argparse.ArgumentParser:
     sp = add("report", cmd_report, "Generate finding-graph JSON + Markdown report for a study")
     sp.add_argument("--study-id", required=True)
     sp.add_argument("--run", required=True)
+    sp.add_argument("--out", default=None)
+
+    sp = add(
+        "report-assistant",
+        cmd_report_assistant,
+        "Research-assistant report: finding graph + summary + cross-model check + optional LLM",
+    )
+    sp.add_argument("--study-id", required=True)
+    sp.add_argument("--run", required=True)
+    sp.add_argument(
+        "--baseline-run", default=None, help="optional run dir to compare against (e.g. E0)"
+    )
+    sp.add_argument("--llm", action="store_true", help="add fail-closed local-Ollama wording")
+    sp.add_argument("--model", default="openbmb/minicpm-v4.5:8b")
+    sp.add_argument("--host", default="http://localhost:11434")
     sp.add_argument("--out", default=None)
 
     sp = add(
