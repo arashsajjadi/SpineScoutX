@@ -117,45 +117,54 @@ def generate_anatomy_priors(
     # Crop size = cached image crop side length.
     crop_size = int(np.load(rsna_cache / records[0].crop_path).shape[-1])
 
-    slice_cache: dict[str, np.ndarray] = {}
-    written = 0
-    skipped = 0
+    # Group findings by source slice so each DICOM is decoded + segmented exactly
+    # once, and the (large) full-resolution mask is freed before the next slice
+    # (memory-safe over tens of thousands of crops).
+    from collections import defaultdict
+
+    by_slice: dict[str, list] = defaultdict(list)
     prior_rows: list[dict[str, object]] = []
     for rec in records:
-        prior_rel = rec.crop_path
-        prior_abs = out / prior_rel
         region, _side, source = evidence_region_for(rec.condition)
         prior_rows.append(
             {
-                "crop_path": prior_rel,
+                "crop_path": rec.crop_path,
                 "condition": rec.condition,
                 "level": rec.level,
                 "evidence_region": region,
                 "evidence_region_source": source,
             }
         )
-        if prior_abs.exists():
+        by_slice[rec.dicom_path].append(rec)
+
+    written = 0
+    skipped = 0
+    for dicom_path, recs in by_slice.items():
+        pending = [r for r in recs if not (out / r.crop_path).exists()]
+        if not pending:
             continue
-        if rec.dicom_path not in slice_cache:
-            dpath = Path(rec.dicom_path)
-            if not dpath.exists():
-                skipped += 1
-                continue
-            try:
-                slice2d = normalize_intensity(read_dicom(dpath))
-            except Exception as exc:  # noqa: BLE001 - decode failures are logged, never faked
-                log.warning("prior decode failed %s: %s", dpath, exc)
-                skipped += 1
-                continue
-            slice_cache[rec.dicom_path] = _predict_slice_mask(model, slice2d, seg_size, dev)
-        mask_full = slice_cache[rec.dicom_path]
-        crop_labels = np.rint(extract_crop(mask_full.astype(np.float32), rec.x, rec.y, crop_size))
-        channels = np.stack(
-            [(crop_labels == idx).astype(np.float32) for idx in _CHANNEL_CLASS_IDX], axis=0
-        )
-        ensure_dir(prior_abs.parent)
-        np.save(prior_abs, channels)
-        written += 1
+        dpath = Path(dicom_path)
+        if not dpath.exists():
+            skipped += len(pending)
+            continue
+        try:
+            slice2d = normalize_intensity(read_dicom(dpath))
+        except Exception as exc:  # noqa: BLE001 - decode failures are logged, never faked
+            log.warning("prior decode failed %s: %s", dpath, exc)
+            skipped += len(pending)
+            continue
+        mask_full = _predict_slice_mask(model, slice2d, seg_size, dev).astype(np.float32)
+        for rec in pending:
+            crop_labels = np.rint(extract_crop(mask_full, rec.x, rec.y, crop_size))
+            # Binary prior channels stored as uint8 (loaded back as float32 by the
+            # dataset); 4x smaller on disk than float32.
+            channels = np.stack(
+                [(crop_labels == idx).astype(np.uint8) for idx in _CHANNEL_CLASS_IDX], axis=0
+            )
+            prior_abs = out / rec.crop_path
+            ensure_dir(prior_abs.parent)
+            np.save(prior_abs, channels)
+            written += 1
 
     # Persist the prior manifest with region-validity flags.
     import pandas as pd
