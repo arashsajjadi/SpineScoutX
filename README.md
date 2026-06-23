@@ -65,11 +65,17 @@ left/right subarticular stenosis. See [`docs/data_setup.md`](docs/data_setup.md)
 
 ### Real-data status
 
-All published metrics/figures here are **synthetic smoke only** — no real RSNA/SPIDER
-run has been executed yet (RSNA requires your Kaggle credentials + competition-rule
-acceptance; SPIDER is a ~3.76 GB CC BY 4.0 download). See
-[`docs/data_status.md`](docs/data_status.md) for the exact acquisition steps and the
-current blocker, and check readiness with `spinescoutx doctor --data`.
+| Experiment | Data | Status |
+|---|---|---|
+| **E4 — SPIDER anatomy segmentation** | SPIDER (CC BY 4.0) | ✅ **REAL** — mean Dice **0.884**, canal **0.902** on SPIDER's official val split |
+| E0 / E1 / E2-E3 — RSNA grading + anatomy priors | RSNA | ⛔ **blocked** — needs your Kaggle credentials + competition-rule acceptance |
+
+E4 was trained on the real SPIDER dataset; see
+[`docs/technical_report.md`](docs/technical_report.md) §9.1. The RSNA grading
+experiments (the headline anatomy-prior question) are **not yet run on real data**
+and their numbers here are **synthetic smoke only**. See
+[`docs/data_status.md`](docs/data_status.md) for exact RSNA acquisition steps, and
+check readiness with `spinescoutx doctor --data`.
 
 ## 6. Quickstart
 

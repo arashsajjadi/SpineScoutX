@@ -11,14 +11,17 @@ Research-only: SPIDER masks are anatomy, not pathology.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
+import cv2
 import numpy as np
 import pandas as pd
 
 from ..constants import (
     ANATOMY_CLASS_TO_INDEX,
+    FOREGROUND_ANATOMY_CLASSES,
 )
 from ..utils.logging import get_logger
 
@@ -247,3 +250,201 @@ def remap_spider_labels(mask: np.ndarray) -> np.ndarray:
     out[disc] = _DISC_IDX
     out[canal] = _CANAL_IDX
     return out
+
+
+# --- 2D slice caching (volume -> cached crop_size slices + seg_index) ------------
+def _patient_id(subject_id: str) -> str:
+    """Patient id = leading integer of the subject stem (groups t1/t2 together)."""
+    m = re.match(r"(\d+)", str(subject_id))
+    return m.group(1) if m else str(subject_id)
+
+
+def _slice_axis(shape: tuple[int, ...]) -> int:
+    """Through-plane (sagittal) axis = the smallest dimension for lumbar MRI."""
+    return int(np.argmin(shape))
+
+
+def _resolve_subject_split(
+    index: pd.DataFrame,
+    official_split_csv: str | Path | None,
+    val_fraction: float,
+    seed: int,
+    patient_level_split,
+) -> tuple[dict[str, str], str]:
+    """Map each ``subject_id`` to "train"/"val" plus a label for the split source.
+
+    Prefers SPIDER's official ``overview.csv`` ``subset`` column (``training`` ->
+    train, ``validation``/``test`` -> val) so results are comparable to the public
+    benchmark; falls back to a deterministic seeded patient-level split.
+    """
+    if official_split_csv is not None and Path(official_split_csv).exists():
+        overview = pd.read_csv(official_split_csv)
+        name_col = "new_file_name" if "new_file_name" in overview.columns else overview.columns[0]
+        if "subset" in overview.columns:
+            mapping = {
+                str(r[name_col]): (
+                    "train" if str(r["subset"]).lower().startswith("train") else "val"
+                )
+                for _, r in overview.iterrows()
+            }
+            subject_split = {str(sid): mapping.get(str(sid), "val") for sid in index["subject_id"]}
+            return subject_split, "spider_official_overview_csv"
+
+    split_map = patient_level_split(sorted(index["patient_id"].unique()), val_fraction, seed)
+    subject_split = {
+        str(sid): split_map.get(str(pid), "train")
+        for sid, pid in zip(index["subject_id"], index["patient_id"], strict=False)
+    }
+    return subject_split, "seeded_patient_level"
+
+
+def cache_spider_slices(
+    spider_root: str | Path,
+    out_cache: str | Path,
+    *,
+    crop_size: int = 256,
+    modalities: tuple[str, ...] = ("t1", "t2"),
+    min_foreground: float = 0.002,
+    val_fraction: float = 0.2,
+    seed: int = 1337,
+    limit_subjects: int | None = None,
+    official_split_csv: str | Path | None = None,
+    dry_run: bool = False,
+) -> dict[str, object]:
+    """Decode SPIDER volumes into cached 2D slices + a patient-split ``seg_index``.
+
+    For each image/mask volume we pick the sagittal (through-plane) axis, keep
+    slices whose remapped mask has at least ``min_foreground`` foreground fraction,
+    robustly normalize the image, resize image (area) and mask (nearest) to
+    ``crop_size``, and save ``.npy`` pairs. Returns a JSON-able summary; with
+    ``dry_run`` no files are written.
+
+    Split is **patient-level** (t1/t2 of a subject stay together). If
+    ``official_split_csv`` (SPIDER ``overview.csv``) is given, its ``subset``
+    column is honored (``training`` -> train, else -> val); otherwise a
+    deterministic seeded patient split is used.
+    """
+    from ..utils.paths import ensure_dir
+    from .dicom_io import normalize_intensity
+    from .splits import patient_level_split
+
+    out = Path(out_cache)
+    index = build_spider_index(spider_root)
+    if modalities:
+        index = index[index["modality"].isin(modalities)].reset_index(drop=True)
+    index = index[index["mask_path"].astype(str) != ""].reset_index(drop=True)
+    if len(index) == 0:
+        raise FileNotFoundError(
+            f"No paired SPIDER image/mask volumes found under {spider_root}. "
+            "Check that images/ and masks/ contain matching .mha files."
+        )
+    index["patient_id"] = index["subject_id"].map(_patient_id)
+
+    patients = sorted(index["patient_id"].unique(), key=lambda s: (len(s), s))
+    if limit_subjects is not None:
+        patients = patients[: int(limit_subjects)]
+        index = index[index["patient_id"].isin(patients)].reset_index(drop=True)
+
+    subject_split, split_source = _resolve_subject_split(
+        index, official_split_csv, val_fraction, seed, patient_level_split
+    )
+
+    summary: dict[str, object] = {
+        "spider_root": str(spider_root),
+        "out_cache": str(out),
+        "crop_size": int(crop_size),
+        "modalities": list(modalities),
+        "split_source": split_source,
+        "n_patients": len(patients),
+        "n_volumes": int(len(index)),
+        "volume_split": {
+            s: int(sum(subject_split.get(str(sid), "train") == s for sid in index["subject_id"]))
+            for s in ("train", "val")
+        },
+    }
+    if dry_run:
+        summary["dry_run"] = True
+        return summary
+
+    images_out = ensure_dir(out / "images")
+    masks_out = ensure_dir(out / "masks")
+    rows: list[dict[str, object]] = []
+    class_px = np.zeros(len(ANATOMY_CLASS_TO_INDEX), dtype=np.int64)
+    skipped_volumes = 0
+
+    for _, row in index.iterrows():
+        subject = str(row["subject_id"])
+        image_vol = load_volume(row["image_path"])
+        mask_vol = remap_spider_labels(load_volume(row["mask_path"]))
+        if image_vol.shape != mask_vol.shape:
+            log.warning(
+                "shape mismatch for %s: img %s vs mask %s; skipping",
+                subject,
+                image_vol.shape,
+                mask_vol.shape,
+            )
+            skipped_volumes += 1
+            continue
+        if image_vol.ndim == 2:
+            image_vol = image_vol[None]
+            mask_vol = mask_vol[None]
+        axis = _slice_axis(image_vol.shape)
+        n_slices = image_vol.shape[axis]
+        split = subject_split.get(subject, "train")
+        for i in range(n_slices):
+            m2d = np.ascontiguousarray(np.take(mask_vol, i, axis=axis)).astype(np.int64)
+            if m2d.size == 0 or (np.count_nonzero(m2d) / m2d.size) < min_foreground:
+                continue
+            img2d = normalize_intensity(np.take(image_vol, i, axis=axis).astype(np.float32))
+            img_r = cv2.resize(img2d, (crop_size, crop_size), interpolation=cv2.INTER_AREA)
+            m_r = cv2.resize(
+                m2d.astype(np.uint8), (crop_size, crop_size), interpolation=cv2.INTER_NEAREST
+            ).astype(np.int64)
+            rel_img = f"images/{subject}_{i:03d}.npy"
+            rel_mask = f"masks/{subject}_{i:03d}.npy"
+            np.save(images_out / f"{subject}_{i:03d}.npy", img_r.astype(np.float32))
+            np.save(masks_out / f"{subject}_{i:03d}.npy", m_r)
+            rows.append(
+                {
+                    "subject_id": subject,
+                    "patient_id": str(row["patient_id"]),
+                    "modality": str(row["modality"]),
+                    "slice_idx": int(i),
+                    "image_path": rel_img,
+                    "mask_path": rel_mask,
+                    "split": split,
+                }
+            )
+            for c in range(len(class_px)):
+                class_px[c] += int(np.count_nonzero(m_r == c))
+
+    frame = pd.DataFrame(rows)
+    index_path = _write_seg_index(frame, out)
+    summary["n_slices_cached"] = int(len(frame))
+    summary["skipped_volumes"] = int(skipped_volumes)
+    summary["seg_index"] = str(index_path)
+    summary["slice_split"] = (
+        {s: int((frame["split"] == s).sum()) for s in ("train", "val")}
+        if len(frame)
+        else {"train": 0, "val": 0}
+    )
+    total_fg = int(class_px[1:].sum())
+    summary["foreground_class_fraction"] = {
+        name: (float(class_px[idx] / total_fg) if total_fg else 0.0)
+        for name, idx in ANATOMY_CLASS_TO_INDEX.items()
+        if name in FOREGROUND_ANATOMY_CLASSES
+    }
+    return summary
+
+
+def _write_seg_index(frame: pd.DataFrame, out: Path) -> Path:
+    """Write the SPIDER seg index as parquet (if pyarrow available) else CSV."""
+    try:
+        import pyarrow  # noqa: F401
+
+        path = out / "seg_index.parquet"
+        frame.to_parquet(path, index=False)
+    except ImportError:
+        path = out / "seg_index.csv"
+        frame.to_csv(path, index=False)
+    return path

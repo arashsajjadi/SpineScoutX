@@ -11,11 +11,13 @@ import matplotlib
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
+import numpy as np
 
 from spinescoutx.viz.panels import (
     SYNTHETIC_PROVENANCE,
     _stamp,
     figures_from_report,
+    make_segmentation_examples,
     provenance_label,
 )
 
@@ -65,3 +67,15 @@ def test_figures_from_report_synthetic_runs(tmp_path) -> None:
     paths = figures_from_report(report, tmp_path)
     assert paths and all(p.exists() for p in paths)
     assert any("findings_card" in str(p) for p in paths)
+
+
+def test_make_segmentation_examples_runs(tmp_path) -> None:
+    rng = np.random.default_rng(0)
+    items = []
+    for _ in range(2):
+        image = rng.random((32, 32)).astype(np.float32)
+        gt = rng.integers(0, 4, size=(32, 32)).astype(np.int64)
+        pred = rng.integers(0, 4, size=(32, 32)).astype(np.int64)
+        items.append({"image": image, "gt": gt, "pred": pred, "title": "dice=0.50"})
+    out = make_segmentation_examples(items, tmp_path / "seg.png", provenance="x")
+    assert out.exists()

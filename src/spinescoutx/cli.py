@@ -175,13 +175,35 @@ def cmd_prepare_spider(args: argparse.Namespace) -> int:
             missing=report.missing,
             present=report.present,
         )
-    from .data.spider_index import build_spider_index
+    from .data.spider_index import cache_spider_slices
     from .utils.paths import ensure_dir
 
     out = ensure_dir(args.out)
-    index = build_spider_index(args.spider_root)
-    summary = {"out": str(out), "n_subjects": int(len(index))}
-    log.info("SPIDER prepared: %s", summary)
+    modalities = tuple(m.strip().lower() for m in args.modalities.split(",") if m.strip())
+    overview = Path(args.spider_root) / "overview.csv"  # SPIDER official split, if present
+    summary = cache_spider_slices(
+        args.spider_root,
+        out,
+        crop_size=args.crop_size,
+        modalities=modalities,
+        val_fraction=args.val_fraction,
+        seed=args.seed,
+        limit_subjects=args.limit_subjects,
+        official_split_csv=overview if not args.no_official_split else None,
+        dry_run=args.dry_run,
+    )
+    # Persist a human + machine readable preprocessing report (gitignored outputs/).
+    if not args.dry_run:
+        import json
+
+        rep_dir = ensure_dir("outputs/real")
+        (rep_dir / "spider_prepare_report.json").write_text(
+            json.dumps(summary, indent=2, sort_keys=True)
+        )
+    log.info(
+        "SPIDER prepared: %s",
+        {k: summary.get(k) for k in ("n_patients", "n_volumes", "n_slices_cached", "slice_split")},
+    )
     return _ok(args, summary)
 
 
@@ -405,9 +427,20 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--rsna-root", required=True)
     sp.add_argument("--out", required=True)
 
-    sp = add("prepare-spider", cmd_prepare_spider, "Index SPIDER segmentation data into a cache")
+    sp = add("prepare-spider", cmd_prepare_spider, "Cache SPIDER slices + seg index")
     sp.add_argument("--spider-root", required=True)
     sp.add_argument("--out", required=True)
+    sp.add_argument("--crop-size", type=int, default=256)
+    sp.add_argument("--modalities", default="t1,t2", help="comma-separated, e.g. 't2' or 't1,t2'")
+    sp.add_argument("--val-fraction", type=float, default=0.2)
+    sp.add_argument("--seed", type=int, default=1337)
+    sp.add_argument("--limit-subjects", type=int, default=None, help="cap number of patients")
+    sp.add_argument(
+        "--no-official-split",
+        action="store_true",
+        help="ignore SPIDER overview.csv subsets; use a seeded patient split",
+    )
+    sp.add_argument("--dry-run", action="store_true", help="report the plan without writing files")
 
     for name, handler, help_text in [
         ("train-classifier", cmd_train_classifier, "Train the image-only baseline (E0)"),

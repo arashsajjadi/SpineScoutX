@@ -43,12 +43,17 @@ spinescoutx doctor --data --rsna-root data/raw/rsna --spider-root data/raw/spide
 > The maintainer/agent must **not** download RSNA from unofficial mirrors and must
 > not commit any DICOMs, CSV labels, crops, or caches.
 
-## SPIDER Lumbar Spine Segmentation — available but not downloaded
+## SPIDER Lumbar Spine Segmentation — DOWNLOADED; E4 trained ✅
+
+Real E4 anatomy segmentation has been **run** on this dataset: mean Dice **0.884**
+(canal 0.902, vertebra 0.903, disc 0.846) on SPIDER's **official** validation split
+(218 patients / 447 volumes / 10,338 cached slices). See `technical_report.md`
+§9.1. Raw data lives under `data/raw/spider` (gitignored, not redistributed).
 
 | Item | Value |
 |---|---|
 | Expected root | `data/raw/spider` |
-| Present? | **No** |
+| Present? | **Yes** (downloaded from the official Zenodo record) |
 | Official source | Zenodo record **10159290**, DOI `10.5281/zenodo.10159290` (verified via Zenodo API) |
 | Title | *SPIDER — Lumbar spine segmentation in MR images: a dataset and a public benchmark* (van der Graaf et al.) |
 | License | **CC BY 4.0** (attribution required) |

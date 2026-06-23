@@ -1,0 +1,39 @@
+# E4 (REAL) — SPIDER anatomy segmenter on the real SPIDER dataset.
+# Requires: spinescoutx prepare-spider has cached slices + seg_index under
+# data/cache/spider. 4-class ANATOMY masks (background/vertebra/disc/spinal_canal);
+# these are anatomy masks, NOT pathology masks.
+name: e4_segmentation_spider_real
+seed: 1337
+task: segment
+output_root: runs
+
+data:
+  spider_cache: data/cache/spider
+  synthetic: false           # use the real cached SPIDER slices
+  crop_size: 256
+  use_25d: false
+  num_workers: 8
+  split_seed: 1337
+  val_fraction: 0.2
+
+model:
+  kind: anatomy_segmenter
+  backbone: unet             # built-in 2D U-Net (monai_unet if monai installed)
+  in_chans: 1
+  num_anatomy_classes: 4
+
+train:
+  epochs: 30
+  batch_size: 16
+  lr: 0.0005
+  weight_decay: 0.00001
+  amp: true                  # mixed precision on CUDA (RTX 5080)
+  early_stop_patience: 8
+  loss: dice_ce              # Dice + CrossEntropy
+  monitor: val_mean_dice
+  monitor_mode: max
+  device: auto
+
+eval:
+  report_per_class_dice: true
+  canal_dice_separately: true

@@ -152,6 +152,36 @@ def make_failure_cases(
     return _save(fig, path)
 
 
+def make_segmentation_examples(
+    items: list[dict],
+    path: str | Path,
+    *,
+    provenance: str | None = None,
+    title: str = "SPIDER anatomy segmentation",
+) -> Path:
+    """Grid of ``MRI | ground-truth | prediction`` overlays for anatomy segmentation.
+
+    Each ``item`` is ``{image (H,W), gt (H,W label map), pred (H,W label map),
+    title?}``. Masks are tinted with the 4-class anatomy palette
+    (vertebra/disc/spinal_canal); background is untinted.
+    """
+    n = max(1, len(items))
+    fig, axes = plt.subplots(n, 3, figsize=(9.0, 3.0 * n), squeeze=False)
+    headers = ["MRI slice", "ground truth", "prediction"]
+    for r in range(n):
+        item = items[r] if r < len(items) else {}
+        image = _first_channel(item.get("image"))
+        gt = np.asarray(item.get("gt"))
+        pred = np.asarray(item.get("pred"))
+        _show_image(axes[r][0], to_rgb(image), headers[0] if r == 0 else None)
+        _show_image(axes[r][1], overlay_mask(image, gt), headers[1] if r == 0 else None)
+        _show_image(axes[r][2], overlay_mask(image, pred), headers[2] if r == 0 else None)
+        axes[r][0].set_ylabel(str(item.get("title", f"case {r}")), fontsize=8)
+    fig.suptitle(title, fontsize=11)
+    _stamp(fig, provenance)
+    return _save(fig, path)
+
+
 def make_reliability_diagram(
     curve: dict,
     path: str | Path,
@@ -418,6 +448,7 @@ __all__ = [
     "make_ablation_summary",
     "make_examples_grid",
     "make_failure_cases",
+    "make_segmentation_examples",
     "make_linkedin_hero_panel",
     "make_reliability_diagram",
 ]

@@ -5,14 +5,20 @@
 
 ## 0. Status of this report
 
-This repository ships the **complete, tested pipeline** plus a **synthetic
-smoke** that exercises every stage end-to-end. **The real RSNA and SPIDER
-datasets were not present in this environment, so no real-data training was run
-and no real metrics are reported.** Every number in §9–§13 below comes from the
-*synthetic* smoke and exists only to prove the code executes and the metrics are
-wired correctly. **These synthetic numbers are not research results and must not
-be read as evidence for or against the hypothesis.** To produce real results,
-follow [`data_setup.md`](data_setup.md) and run E0/E4/E1/ablation on the datasets.
+Mixed real + synthetic. Read the provenance of every number:
+
+- **E4 — SPIDER anatomy segmentation: REAL.** Trained and evaluated on the real
+  SPIDER dataset (Zenodo 10159290, CC BY 4.0) using SPIDER's **official** split.
+  Results in §9.1 and §13.1 are real. See [`data_status.md`](data_status.md).
+- **E0 / E1 / E2 / E3 / RSNA-AEC: BLOCKED (synthetic only).** The RSNA grading
+  dataset is **not present** — it requires Kaggle credentials + competition-rule
+  acceptance under the user's account. No real RSNA training was run. The E0/E1/
+  ablation/calibration numbers in §9.2 come from the **synthetic smoke** and are
+  **not research results**; they only prove the metric plumbing works.
+
+The headline question (do anatomy priors help RSNA grading?) therefore remains
+**untested on real data**. To unblock it, follow [`data_status.md`](data_status.md)
+to obtain RSNA, then run E0 → anatomy-prior generation → E1 → ablation.
 
 ## 1. Abstract
 
@@ -95,22 +101,43 @@ Segmentation: per-class Dice/IoU, mean Dice, canal Dice, latency. Evidence: AEC,
 leakage, peak-to-localizer distance, completeness, uncertainty coverage. Runtime:
 prep/train/infer time, GPU peak memory, CPU fallback.
 
-## 9. Results — SYNTHETIC SMOKE ONLY (pipeline validation, not research results)
+## 9. Results
 
-Synthetic config: `n≈48`, `crop=48`, `backbone=small_cnn`, CPU, 2 epochs,
-`max_steps=6`. Held-out synthetic val ≈ 9–10 samples. **Interpret nothing here as
+### 9.1 E4 — SPIDER anatomy segmentation (REAL)
+
+Real data: SPIDER (Zenodo 10159290, CC BY 4.0). Preprocessing cached **10,338
+sagittal 2D slices** from **447 volumes / 218 patients** (both T1 and T2),
+foreground-filtered, normalized, resized to 256². Split is SPIDER's **official**
+subset split (360 train / 87 val volumes → 8,040 / 2,298 slices). Model: built-in
+2D U-Net, Dice+CE loss, AMP on an RTX 5080, 25 epochs (best by val mean Dice at
+epoch 16, early-stopped). These are **real research metrics** on the official
+validation split.
+
+| Class | Dice | IoU |
+|---|---|---|
+| Vertebra | 0.903 | 0.823 |
+| Disc | 0.846 | 0.733 |
+| **Spinal canal** | **0.902** | 0.822 |
+| **Mean (foreground)** | **0.884** | 0.793 |
+
+Disc Dice (0.846) is the weakest class — expected, since intervertebral discs are
+thin and adjacent, so boundary slices cost the most overlap. Canal and vertebra
+both exceed 0.90. Qualitative best/worst overlays:
+`outputs/real/figures/e4_segmentation_examples.png` /
+`e4_segmentation_failures.png` (failure cases shown, not hidden). These are
+**anatomy** masks, not pathology/stenosis masks.
+
+### 9.2 E0 / E1 / ablation — SYNTHETIC SMOKE ONLY (not research results)
+
+RSNA is absent (blocked on Kaggle credentials), so the grading experiments below
+are **synthetic smoke only**: `n≈48`, `crop=48`, `backbone=small_cnn`, CPU,
+2 epochs, `max_steps=6`, held-out val ≈ 9–10 samples. **Interpret nothing here as
 a finding** — these confirm the metric plumbing and that every stage runs.
 
 | Experiment (synthetic) | weighted log loss | macro F1 | severe recall | severe FNR | ECE | ECE (post-temp) |
 |---|---|---|---|---|---|---|
 | E0 image-only | 1.032 | 0.417 | 0.333 | 0.667 | 0.273 | 0.260 |
 | E1 anatomy-guided | 1.199 | 0.222 | 0.000 | 1.000 | 0.148 | 0.167 |
-
-E4 segmenter (synthetic): val mean Dice ≈ 0.051 (2 epochs, 6 steps — untrained).
-
-E7 runtime (synthetic, `small_cnn`, batch 8, crop 48, CPU): ≈ 0.76 ms/batch
-(≈ 0.095 ms/sample) forward. On the available RTX 5080, real configs would use
-AMP + GPU.
 
 > The E1<E0 ordering above is a **small-synthetic-data / random-init artifact**,
 > not evidence about anatomy priors. With ~10 val samples and 6 training steps,
@@ -154,16 +181,26 @@ report peak-to-localizer distance. Evidence overlays are saved and failure cases
 
 ## 13. Runtime benchmarks
 
+### 13.1 E4 — SPIDER segmentation (REAL, RTX 5080)
+
+- Preprocessing (decode 447 .mha volumes → 10,338 cached slices): **96 s** (~0.2 s/volume).
+- Training: 25 epochs (early-stopped), ~30 s/epoch with AMP; GPU util ~94%.
+- Inference: **0.85 ms/slice** (p90 0.89 ms), GPU peak **≈ 83 MB** (batch 1, 256²).
+- `outputs/real/e4_segmentation_metrics.json` holds the machine-readable record.
+
+### 13.2 Classifier path (synthetic)
+
 `spinescoutx benchmark --run <run>` times a warm forward pass and reports
 per-batch / per-sample latency and (on CUDA) peak memory. Synthetic CPU numbers in
-§9. Real-data preprocessing/training timings depend on dataset size and are
-produced by the same command once a real run exists.
+§9.2. Real RSNA classifier timings are pending RSNA availability.
 
 ## 14. Failure cases
 
-Reported honestly: (a) the synthetic E1<E0 ordering above; (b) the untrained
-synthetic segmenter (Dice ≈ 0.05); (c) anatomically inconsistent Grad-CAM
-heatmaps captured in the failure-case panel. None are cherry-picked away.
+Reported honestly: (a) **E4 (real):** disc Dice (0.846) lags vertebra/canal
+(~0.90); the worst-case overlays in `outputs/real/figures/e4_segmentation_failures.png`
+show disc-boundary and end-plate confusions — shown, not hidden. (b) the synthetic
+E1<E0 ordering (§9.2), a small-data artifact, not a finding. (c) anatomically
+inconsistent Grad-CAM heatmaps in the synthetic evidence panel. None cherry-picked.
 
 ## 15. Limitations
 
