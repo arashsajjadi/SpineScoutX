@@ -66,6 +66,17 @@ temperature scaling (fit on val — a research-demo simplification) leaves ECE
 essentially unchanged (E1 0.034→0.031, T≈1.13; E0 T≈0.98). Uncertainty flags
 (`high`/`moderate`/`review_required`) are attached to every finding.
 
+## Why v0.5 — "anatomy-forced" (motivation)
+
+The v0.4 ablation is the crux: concat-fusion (`[image crop ⊕ anatomy channels] → classifier`)
+let the model **ignore** anatomy (zero ≈ shuffle ≈ correct). Concatenated mask channels are an
+*optional* input the network can down-weight to zero. v0.5 changes the **structure** so anatomy
+is not bypassable: the anatomy masks define **regions**, and features are **region-pooled** from
+those masks (canal/disc/vertebra), with global-feature dropout forcing the head to rely on the
+region features. If the mask is zeroed or shuffled, the region features change by construction, so
+the prediction must change too — making the ablation a genuine test of anatomy usage. See
+`docs/technical_report.md` and the E2 results/ablation below once available.
+
 ## Honest interpretation
 - **Did anatomy priors help classification?** Not meaningfully — a <1% log-loss /
   macro-F1 edge that the ablation shows is **not** due to anatomy; severe recall is
