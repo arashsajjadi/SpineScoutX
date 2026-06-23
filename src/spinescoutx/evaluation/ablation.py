@@ -45,10 +45,25 @@ from .evidence_metrics import anatomical_evidence_consistency
 log = get_logger()
 
 #: Ablation modes understood by :func:`perturb_anatomy`.
-ABLATION_MODES: tuple[str, ...] = ("correct", "zero", "shuffled", "noise")
+ABLATION_MODES: tuple[str, ...] = (
+    "correct",
+    "zero",
+    "shuffled",
+    "noise",
+    "target_region_only",
+    "wrong_region_only",
+)
 
 #: Fixed, nonzero batch-roll offset for the ``shuffled`` mode.
 _SHUFFLE_OFFSET: int = 1
+
+
+def _keep_only_channel(anatomy: torch.Tensor, channels: torch.Tensor) -> torch.Tensor:
+    """Zero every anatomy channel except ``channels[i]`` for each sample ``i``."""
+    out = torch.zeros_like(anatomy)
+    idx = torch.arange(anatomy.shape[0], device=anatomy.device)
+    out[idx, channels] = anatomy[idx, channels]
+    return out
 
 
 def perturb_anatomy(
@@ -56,26 +71,20 @@ def perturb_anatomy(
     mode: str,
     *,
     seed: int = 1337,
+    condition_idx: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """Return a perturbed copy of an anatomy-prior batch.
 
-    Parameters
-    ----------
-    anatomy:
-        Anatomy-prior tensor of shape ``(B, C, H, W)``.
-    mode:
-        One of ``"correct"``, ``"zero"``, ``"shuffled"``, ``"noise"``.
-    seed:
-        Seed for the deterministic generator used by ``"noise"``.
-
     Modes
     -----
-    - ``correct``  : identity (returns ``anatomy`` unchanged).
-    - ``zero``     : ``torch.zeros_like(anatomy)``.
-    - ``shuffled`` : roll along the batch dim by a fixed nonzero offset so each
-      sample receives another sample's anatomy. With a single-sample batch the
-      roll is a no-op, which is unavoidable and harmless.
-    - ``noise``    : ``torch.rand_like(anatomy)`` drawn from a seeded generator.
+    - ``correct``  : identity.
+    - ``zero``     : ``torch.zeros_like``.
+    - ``shuffled`` : roll along the batch dim (each sample gets another's anatomy).
+    - ``noise``    : seeded uniform noise.
+    - ``target_region_only`` : keep only the condition's dominant anatomy region
+      channel (disc/canal per condition); zero the rest. Requires ``condition_idx``.
+    - ``wrong_region_only``  : keep only a NON-target region channel; zero the
+      target and the rest. Requires ``condition_idx``.
     """
     if anatomy.dim() != 4:
         raise ValueError(f"anatomy must be 4D (B, C, H, W), got shape {tuple(anatomy.shape)}")
@@ -87,12 +96,17 @@ def perturb_anatomy(
         return torch.roll(anatomy, shifts=_SHUFFLE_OFFSET, dims=0)
     if mode == "noise":
         generator = torch.Generator(device="cpu").manual_seed(int(seed))
-        noise = torch.rand(
-            anatomy.shape,
-            generator=generator,
-            dtype=anatomy.dtype,
-        )
+        noise = torch.rand(anatomy.shape, generator=generator, dtype=anatomy.dtype)
         return noise.to(anatomy.device)
+    if mode in ("target_region_only", "wrong_region_only"):
+        if condition_idx is None:
+            raise ValueError(f"{mode} requires condition_idx (per-sample condition).")
+        from ..models.anatomy_forced_classifier import _dominant_region_ids
+
+        n_chans = anatomy.shape[1]
+        dom = _dominant_region_ids().to(anatomy.device)[condition_idx]  # [B] target channel
+        keep = dom if mode == "target_region_only" else (dom + 1) % n_chans
+        return _keep_only_channel(anatomy, keep)
     raise ValueError(f"Unknown ablation mode: {mode!r} (expected one of {ABLATION_MODES}).")
 
 
@@ -130,12 +144,21 @@ def _build_synthetic_val_loader(cfg: Config) -> DataLoader:
     )
 
 
+def _build_anatomy_model(model_cfg) -> torch.nn.Module:
+    """Build the guided OR forced anatomy classifier from the model config kind."""
+    if model_cfg.kind == "anatomy_forced_classifier":
+        from ..models.anatomy_forced_classifier import build_anatomy_forced_classifier
+
+        return build_anatomy_forced_classifier(model_cfg)
+    return build_anatomy_guided_classifier(model_cfg)
+
+
 def _load_checkpoint_model(
     cfg: Config,
     checkpoint_path: Path,
     device: torch.device,
-) -> AnatomyGuidedClassifier:
-    """Load a trained anatomy-guided model from ``checkpoint_path``."""
+) -> torch.nn.Module:
+    """Load a trained anatomy-guided/forced model from ``checkpoint_path``."""
     if not checkpoint_path.exists():
         raise FileNotFoundError(
             f"Ablation checkpoint not found: {checkpoint_path}. "
@@ -145,7 +168,7 @@ def _load_checkpoint_model(
     payload = torch.load(checkpoint_path, map_location=device)
     if not isinstance(payload, dict) or "state_dict" not in payload:
         raise ValueError(f"Checkpoint {checkpoint_path} is missing a 'state_dict' entry.")
-    model = build_anatomy_guided_classifier(cfg.model)
+    model = _build_anatomy_model(cfg.model)
     model.load_state_dict(payload["state_dict"])
     return model
 
@@ -156,7 +179,7 @@ def _prepare_model(
 ) -> tuple[AnatomyGuidedClassifier, DataLoader]:
     """Build (or load) the model and the validation loader for the ablation."""
     if cfg.data.synthetic:
-        model = build_anatomy_guided_classifier(cfg.model)
+        model = _build_anatomy_model(cfg.model)
         loader = _build_synthetic_val_loader(cfg)
         return model.to(device), loader
 
@@ -281,7 +304,7 @@ def _evaluate_mode(
             condition_idx = batch["condition_idx"].to(device).long()
             target = batch["target"].long()
 
-            perturbed = perturb_anatomy(anatomy, mode, seed=seed)
+            perturbed = perturb_anatomy(anatomy, mode, seed=seed, condition_idx=condition_idx)
             logits = model(image, perturbed, level_idx, condition_idx)
             probs = torch.softmax(logits, dim=1)
             all_probs.append(probs.detach().cpu().numpy())
@@ -300,7 +323,7 @@ def _evaluate_mode(
             anatomy = batch["anatomy"].to(device).float()
             level_idx = batch["level_idx"].to(device).long()
             condition_idx = batch["condition_idx"].to(device).long()
-            perturbed = perturb_anatomy(anatomy, mode, seed=seed)
+            perturbed = perturb_anatomy(anatomy, mode, seed=seed, condition_idx=condition_idx)
             with torch.no_grad():
                 preds = model(image, perturbed, level_idx, condition_idx).argmax(dim=1)
             aec_values.extend(
