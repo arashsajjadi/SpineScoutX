@@ -244,6 +244,201 @@ def cmd_prepare_anatomy_priors(args: argparse.Namespace) -> int:
     return _ok(args, summary)
 
 
+def cmd_build_morphology(args: argparse.Namespace) -> int:
+    from .features.morphology import FEATURE_NAMES, build_morphology_table
+    from .utils.paths import ensure_dir
+
+    out = ensure_dir(args.out)
+    table = build_morphology_table(args.anatomy_cache, args.crop_manifest, out, limit=args.limit)
+    summary = {
+        "n_rows": int(len(table)),
+        "n_features": len(FEATURE_NAMES),
+        "anatomy_cache": str(args.anatomy_cache),
+        "crop_manifest": str(args.crop_manifest),
+        "out": str(out),
+    }
+    if len(table):
+        import json
+
+        rep = ensure_dir("outputs/real")
+        (rep / "morphology_report.json").write_text(json.dumps(summary, indent=2, sort_keys=True))
+    log.info("morphology features: %s", summary)
+    return _ok(args, summary)
+
+
+def cmd_build_study_index(args: argparse.Namespace) -> int:
+    from .data.study_registry import build_study_index, view_distribution
+    from .utils.paths import ensure_dir
+
+    out = ensure_dir(args.out)
+    index = build_study_index(args.rsna_root, out)
+    dist = view_distribution(index)
+    if not args.dry_run:
+        import json
+
+        rep = ensure_dir("outputs/real")
+        (rep / "study_index_report.json").write_text(json.dumps(dist, indent=2, default=str))
+    log.info(
+        "study index: %s", {k: dist[k] for k in ("n_studies", "usable", "studies_missing_axial")}
+    )
+    return _ok(args, dist)
+
+
+def cmd_inspect_study(args: argparse.Namespace) -> int:
+    from .data.study_registry import inspect_study
+
+    info = inspect_study(args.rsna_root, args.study_id)
+    log.info(
+        "study %s: views mask=%s usable=%s series=%s",
+        args.study_id,
+        info.get("view_mask"),
+        info.get("usable"),
+        info.get("n_series"),
+    )
+    return _ok(args, info)
+
+
+def cmd_prepare_localizer(args: argparse.Namespace) -> int:
+    from .data.localizer import prepare_localizer_data
+    from .utils.paths import ensure_dir
+
+    out = ensure_dir(args.out)
+    summary = prepare_localizer_data(
+        args.rsna_root,
+        out,
+        slice_size=args.slice_size,
+        val_fraction=args.val_fraction,
+        seed=args.seed,
+        limit_studies=args.limit_studies,
+        dry_run=args.dry_run,
+    )
+    log.info("localizer data: %s", {k: summary.get(k) for k in ("n_cached", "skipped", "split")})
+    return _ok(args, summary)
+
+
+def cmd_train_localizer(args: argparse.Namespace) -> int:
+    from .training.train_localizer import train_localizer
+
+    cfg = _load_cfg(args.config)
+    run = _resolve_run_dir(cfg, args.run_id)
+    result = train_localizer(cfg, run, json_logs=args.json)
+    log.info("localizer best: %s", result.get("best"))
+    return _ok(args, {"run_dir": str(run), "best": result.get("best", {})})
+
+
+def cmd_train_multiview(args: argparse.Namespace) -> int:
+    from .training.train_multiview import train_multiview
+
+    cfg = _load_cfg(args.config)
+    if cfg.task != "multiview":
+        log.warning("config task=%s; forcing multiview for this command", cfg.task)
+        cfg.task = "multiview"
+    run = _resolve_run_dir(cfg, args.run_id)
+    best = train_multiview(cfg, run, json_logs=args.json)
+    log.info(
+        "E3 best: %s",
+        {k: best.get(k) for k in ("weighted_logloss", "severe_recall", "severe_auroc")},
+    )
+    return _ok(args, {"run_dir": str(run), "best": best})
+
+
+def cmd_severe_frontier(args: argparse.Namespace) -> int:
+    import json
+
+    from .evaluation.severe_frontier import (
+        build_frontier,
+        collect_crop_classifier,
+        collect_multiview,
+    )
+    from .training.optim import select_device
+    from .utils.paths import ensure_dir
+
+    device = select_device("auto")
+    models: dict[str, dict] = {}
+    if args.e0_run:
+        models["E0_image"] = collect_crop_classifier(args.e0_run, args.rsna_cache, None, device)
+    if args.e2_run:
+        models["E2_anatomy_forced"] = collect_crop_classifier(
+            args.e2_run, args.rsna_cache, args.anatomy_cache, device
+        )
+    if args.e3_run:
+        models["E3_multiview_graph"] = collect_multiview(args.e3_run, device)
+    if not models:
+        return _fail(args, "no runs given (need at least one of --e0-run/--e2-run/--e3-run)")
+
+    frontier = build_frontier(models)
+    out = ensure_dir(args.out)
+    (out / "severe_frontier.json").write_text(json.dumps(frontier, indent=2, default=str))
+    # compact log: severe AUROC/AP + recall at 10% false-alarm budget
+    for name, m in frontier["models"].items():
+        r10 = m["recall_at_far"].get("far<=0.1", {})
+        log.info(
+            "%s: severe_auroc=%.4f ap=%.4f  recall@FAR<=0.10=%.3f (thr=%.2f)",
+            name,
+            m.get("severe_auroc", float("nan")),
+            m.get("severe_ap", float("nan")),
+            r10.get("severe_recall", float("nan")),
+            r10.get("threshold", float("nan")),
+        )
+    return _ok(args, {"n_shared_nodes": frontier["n_shared_nodes"], "out": str(out)})
+
+
+def cmd_localize_study(args: argparse.Namespace) -> int:
+    from .data.auto_localize import load_localizer, localize_study
+    from .data.rsna_index import RsnaPaths, build_series_index
+    from .training.optim import select_device
+
+    device = select_device("auto")
+    model, slice_size = load_localizer(args.run, device)
+    images_dir = Path(RsnaPaths.from_root(args.rsna_root).train_images_dir)
+    loc = localize_study(
+        args.study_id, images_dir, build_series_index(args.rsna_root), model, slice_size, device
+    )
+    if loc is None:
+        return _fail(args, f"Could not localize study {args.study_id} (no sagittal T2?)")
+    out = {
+        "study_id": args.study_id,
+        "series_id": loc["series_id"],
+        "instance": loc["instance_number"],
+        "points": {
+            lv: [round(float(loc["points"][i, 0]), 1), round(float(loc["points"][i, 1]), 1)]
+            for i, lv in enumerate(__import__("spinescoutx.constants", fromlist=["LEVELS"]).LEVELS)
+        },
+        "confidence": [round(float(c), 3) for c in loc["confidence"]],
+    }
+    log.info("localized %s: %s", args.study_id, out["points"])
+    return _ok(args, out)
+
+
+def cmd_prepare_rsna_auto_crops(args: argparse.Namespace) -> int:
+    from .data.auto_localize import prepare_rsna_auto_crops
+    from .utils.paths import ensure_dir
+
+    out = ensure_dir(args.out)
+    summary = prepare_rsna_auto_crops(
+        args.rsna_root,
+        args.localizer_run,
+        out,
+        split=args.split,
+        crop_size=args.crop_size,
+        use_25d=not args.no_25d,
+        limit_studies=args.limit_studies,
+        device=args.device,
+    )
+    if not args.dry_run:
+        import json
+
+        ensure_dir("outputs/real")
+        Path("outputs/real/rsna_auto_crops_report.json").write_text(
+            json.dumps(summary, indent=2, default=str)
+        )
+    log.info(
+        "auto-crops: %s",
+        {k: summary.get(k) for k in ("n_studies", "n_auto_crops", "skipped_studies")},
+    )
+    return _ok(args, summary)
+
+
 def _load_cfg(path: str) -> Any:
     from .config import load_config
 
@@ -291,6 +486,25 @@ def cmd_train_anatomy_guided(args: argparse.Namespace) -> int:
         cfg.task = "anatomy_guided"
     run = _resolve_run_dir(cfg, args.run_id)
     # train_classifier branches on cfg.task to build the anatomy-guided model + guided loaders.
+    result = train_classifier(cfg, run, json_logs=args.json)
+    return _ok(
+        args,
+        {
+            "run_dir": str(run),
+            "best": result.get("best", {}),
+            "checkpoint": result.get("checkpoint"),
+        },
+    )
+
+
+def cmd_train_anatomy_forced(args: argparse.Namespace) -> int:
+    from .training.train_classifier import train_classifier
+
+    cfg = _load_cfg(args.config)
+    if cfg.task != "anatomy_forced":
+        log.warning("config task=%s; forcing anatomy_forced for this command", cfg.task)
+        cfg.task = "anatomy_forced"
+    run = _resolve_run_dir(cfg, args.run_id)
     result = train_classifier(cfg, run, json_logs=args.json)
     return _ok(
         args,
@@ -373,6 +587,73 @@ def cmd_report(args: argparse.Namespace) -> int:
     _ = finding_graph_to_dict(graph)
     log.info("report written: %s, %s", json_path, md_path)
     return _ok(args, {"json": str(json_path), "markdown": str(md_path)})
+
+
+def _finding_graph_for_study(run: Path, study_id: str) -> dict[str, Any] | None:
+    """Build a finding-graph dict for one study from a run's predictions.json."""
+    import json
+
+    from .reporting.finding_graph import build_finding_graph, finding_graph_to_dict
+
+    preds_path = run / "predictions.json"
+    if not preds_path.exists():
+        return None
+    preds = json.loads(preds_path.read_text())
+    study_preds = [
+        p for p in preds.get("predictions", []) if str(p.get("study_id")) == str(study_id)
+    ]
+    if not study_preds:
+        return None
+    graph = build_finding_graph(
+        study_id,
+        study_preds,
+        run_id=run.name,
+        model_version=__version__,
+        dataset_source=preds.get("dataset_source", "rsna"),
+    )
+    return finding_graph_to_dict(graph)
+
+
+def cmd_report_assistant(args: argparse.Namespace) -> int:
+    """Richer research-assistant report (deterministic graph + summary + optional LLM)."""
+
+    from .reporting.assistant import build_assistant_markdown
+    from .reporting.finding_graph import finding_graph_from_dict
+    from .reporting.json_report import write_json_report
+    from .utils.paths import ensure_dir
+
+    run = Path(args.run)
+    graph = _finding_graph_for_study(run, args.study_id)
+    if graph is None:
+        return _fail(args, f"No predictions for study {args.study_id} in {run}/predictions.json")
+    baseline_graph = (
+        _finding_graph_for_study(Path(args.baseline_run), args.study_id)
+        if args.baseline_run
+        else None
+    )
+
+    llm_text = None
+    if args.llm:
+        from .reporting.llm_report import generate_safe_llm_report
+
+        res = generate_safe_llm_report(graph, args.model, args.host)
+        llm_text = res["text"] if res["ok"] else None
+
+    md = build_assistant_markdown(
+        graph,
+        baseline_graph=baseline_graph,
+        baseline_name=Path(args.baseline_run).name if args.baseline_run else "baseline",
+        model_name=run.name,
+        llm_text=llm_text,
+    )
+    out_dir = ensure_dir(args.out or "outputs/real/reports")
+    json_path = write_json_report(
+        finding_graph_from_dict(graph), Path(out_dir) / f"{args.study_id}_assistant.json"
+    )
+    md_path = Path(out_dir) / f"{args.study_id}_assistant.md"
+    md_path.write_text(md)
+    log.info("assistant report: %s, %s", json_path, md_path)
+    return _ok(args, {"json": str(json_path), "markdown": str(md_path), "llm_used": bool(llm_text)})
 
 
 def cmd_report_llm(args: argparse.Namespace) -> int:
@@ -498,6 +779,62 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--dry-run", action="store_true", help="report the plan without decoding")
 
     sp = add(
+        "build-morphology", cmd_build_morphology, "Derive morphology features from anatomy masks"
+    )
+    sp.add_argument("--anatomy-cache", required=True)
+    sp.add_argument("--crop-manifest", required=True)
+    sp.add_argument("--out", required=True)
+    sp.add_argument("--limit", type=int, default=None)
+
+    sp = add("build-study-index", cmd_build_study_index, "Build study-level series/view registry")
+    sp.add_argument("--rsna-root", required=True)
+    sp.add_argument("--out", required=True)
+    sp.add_argument("--dry-run", action="store_true")
+
+    sp = add("inspect-study", cmd_inspect_study, "Show series/view detail for one study")
+    sp.add_argument("--study-id", required=True)
+    sp.add_argument("--rsna-root", default="data/raw/rsna")
+
+    sp = add(
+        "prepare-localizer",
+        cmd_prepare_localizer,
+        "Cache mid-sagittal slices + disc-level keypoints",
+    )
+    sp.add_argument("--rsna-root", required=True)
+    sp.add_argument("--out", required=True)
+    sp.add_argument("--slice-size", type=int, default=256)
+    sp.add_argument("--val-fraction", type=float, default=0.2)
+    sp.add_argument("--seed", type=int, default=1337)
+    sp.add_argument("--limit-studies", type=int, default=None)
+    sp.add_argument("--dry-run", action="store_true")
+
+    sp = add(
+        "localize-study",
+        cmd_localize_study,
+        "Predict disc-level points for a study (auto, no GT coords)",
+    )
+    sp.add_argument("--study-id", required=True)
+    sp.add_argument(
+        "--run", required=True, help="localizer run dir (e.g. runs/l0_disc_localizer_real)"
+    )
+    sp.add_argument("--rsna-root", default="data/raw/rsna")
+
+    sp = add(
+        "prepare-rsna-auto-crops",
+        cmd_prepare_rsna_auto_crops,
+        "Auto-crop canal-stenosis findings at predicted disc-level points (real inference)",
+    )
+    sp.add_argument("--rsna-root", required=True)
+    sp.add_argument("--localizer-run", required=True)
+    sp.add_argument("--out", required=True)
+    sp.add_argument("--split", default="val")
+    sp.add_argument("--crop-size", type=int, default=224)
+    sp.add_argument("--no-25d", action="store_true")
+    sp.add_argument("--limit-studies", type=int, default=None)
+    sp.add_argument("--device", default="auto")
+    sp.add_argument("--dry-run", action="store_true")
+
+    sp = add(
         "prepare-anatomy-priors",
         cmd_prepare_anatomy_priors,
         "Generate RSNA anatomy priors from the SPIDER segmenter (E4->RSNA transfer)",
@@ -532,6 +869,21 @@ def build_parser() -> argparse.ArgumentParser:
             cmd_train_anatomy_guided,
             "Train the anatomy-guided classifier (E1)",
         ),
+        (
+            "train-anatomy-forced",
+            cmd_train_anatomy_forced,
+            "Train the anatomy-forced region-pooling classifier (E2)",
+        ),
+        (
+            "train-localizer",
+            cmd_train_localizer,
+            "Train the disc-level keypoint localizer (auto-crop, no GT at inference)",
+        ),
+        (
+            "train-multiview",
+            cmd_train_multiview,
+            "Train the study-level multi-view anatomy-graph reasoner (E3)",
+        ),
     ]:
         sp = add(name, handler, help_text)
         sp.add_argument("--config", required=True)
@@ -541,6 +893,18 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--run", required=True)
     sp.add_argument("--split", default="val")
 
+    sp = add(
+        "severe-frontier",
+        cmd_severe_frontier,
+        "Severe-first operating frontier across E0/E2/E3 on shared canal val nodes",
+    )
+    sp.add_argument("--e0-run", default=None)
+    sp.add_argument("--e2-run", default=None)
+    sp.add_argument("--e3-run", default=None)
+    sp.add_argument("--rsna-cache", default="data/cache/rsna")
+    sp.add_argument("--anatomy-cache", default="data/cache/rsna_anatomy_priors")
+    sp.add_argument("--out", default="outputs/real")
+
     sp = add("ablate", cmd_ablate, "Counterfactual anatomy ablations (E2/E3)")
     sp.add_argument("--config", required=True)
     sp.add_argument("--run-id", default=None)
@@ -548,6 +912,21 @@ def build_parser() -> argparse.ArgumentParser:
     sp = add("report", cmd_report, "Generate finding-graph JSON + Markdown report for a study")
     sp.add_argument("--study-id", required=True)
     sp.add_argument("--run", required=True)
+    sp.add_argument("--out", default=None)
+
+    sp = add(
+        "report-assistant",
+        cmd_report_assistant,
+        "Research-assistant report: finding graph + summary + cross-model check + optional LLM",
+    )
+    sp.add_argument("--study-id", required=True)
+    sp.add_argument("--run", required=True)
+    sp.add_argument(
+        "--baseline-run", default=None, help="optional run dir to compare against (e.g. E0)"
+    )
+    sp.add_argument("--llm", action="store_true", help="add fail-closed local-Ollama wording")
+    sp.add_argument("--model", default="openbmb/minicpm-v4.5:8b")
+    sp.add_argument("--host", default="http://localhost:11434")
     sp.add_argument("--out", default=None)
 
     sp = add(

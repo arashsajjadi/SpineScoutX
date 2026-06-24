@@ -36,6 +36,22 @@ spinescoutx report   --study-id <ID> --run runs/e1_anatomy_guided_real
 Or one resumable command: `bash scripts/run_full_spinescoutx_research.sh`
 (skips completed phases; logs to `outputs/real/`).
 
+### v0.9 robust auto-inference + v1-track (locked test, multi-condition, Safety Mode v2)
+```bash
+# v0.9 — gap decomposition + robust auto-crop training (canal, historical val)
+python scripts/run_gap_decomposition.py            # 2x2 oracle->auto decomposition
+python scripts/run_robust_experiments.py           # robust auto-crop graders
+
+# v1-track — locked test, all on splits_v1 (dev = selection, test = final eval ONCE)
+python scripts/build_splits_v1.py                  # locked patient-level protocol
+python scripts/run_canal_locked_test.py            # canal: oracle vs auto-robust on locked test
+python scripts/run_multicondition_v1.py            # all-condition oracle baselines + view-routing taxonomy
+python scripts/run_safety_mode_v2.py               # severe-first frontier + cost-sensitive comparison
+```
+All write CI-backed JSON + a `docs/run_logs/*.md` writeup; runs/crops are gitignored and
+resumable. Every v1 headline states split (dev/test), provenance (oracle/auto), n,
+n_severe, and a bootstrap CI.
+
 ## Training knobs that matter
 - Frozen-backbone warmup (`freeze_backbone_epochs`) then **gentle** fine-tuning
   (`backbone_unfreeze_lr_scale = 0.2`, i.e. backbone lr = `lr × 0.2`) — avoids the

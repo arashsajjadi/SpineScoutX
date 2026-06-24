@@ -1,0 +1,35 @@
+# E2 ablation — counterfactual anatomy perturbations on the anatomy-forced model.
+# The decisive test: if E2 truly uses anatomy, `correct` must differ meaningfully
+# from zero/shuffled/noise/wrong_region_only (and benefit from target_region_only).
+name: e2_forced_ablation
+seed: 1337
+task: ablate
+output_root: runs
+
+data:
+  rsna_cache: data/cache/rsna
+  anatomy_cache: data/cache/rsna_anatomy_priors
+  synthetic: false
+  crop_size: 224
+  use_25d: true
+  num_workers: 8
+  split_seed: 1337
+  val_fraction: 0.2
+
+model:
+  kind: anatomy_forced_classifier
+  backbone: convnext_tiny
+  in_chans: 3
+  anatomy_in_chans: 3
+  num_classes: 3
+  global_feature_dropout: 0.5
+
+ablation:
+  run: runs/e2_anatomy_forced_roi_real
+  modes: [correct, shuffled, zero, noise, target_region_only, wrong_region_only]
+  shuffle_seed: 1337
+  compute_aec: true
+  aec_max_samples: 800
+
+eval:
+  metrics: [weighted_logloss, macro_f1, severe_recall, severe_fnr, ece, aec]

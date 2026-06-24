@@ -1,0 +1,52 @@
+# E3 (REAL) — study-level multi-view anatomy-graph reasoner.
+# A study = a graph of lumbar disc levels; each level fuses image + anatomy +
+# morphology streams; a Transformer does cross-level attention (level-availability
+# mask). Per-level 3-class severity head. Canal-stenosis condition only (the view
+# with real SPIDER anatomy). Comparable to E0/E1/E2 (same crops/anatomy caches,
+# same split_seed). Requires data/cache/rsna + data/cache/rsna_anatomy_priors.
+name: e3_multiview_canal_real
+seed: 1337
+task: multiview
+output_root: runs
+
+data:
+  rsna_cache: data/cache/rsna
+  anatomy_cache: data/cache/rsna_anatomy_priors
+  synthetic: false
+  crop_size: 224
+  use_25d: true
+  num_workers: 8
+  split_seed: 1337        # MUST match E0/E1/E2 for a fair comparison
+  val_fraction: 0.2
+
+model:
+  kind: multiview_graph
+  backbone: convnext_tiny
+  pretrained: true
+  num_classes: 3
+  use_image: true
+  use_anatomy: true
+  use_morphology: true
+  morph_dim: 14
+  graph_d_model: 256
+  graph_layers: 2
+  graph_heads: 4
+  dropout: 0.2
+
+train:
+  epochs: 25
+  batch_size: 8           # one study = up to 5 level-crops -> ~40 crops/step
+  lr: 0.0003
+  weight_decay: 0.0001
+  amp: true
+  freeze_backbone_epochs: 2
+  backbone_unfreeze_lr_scale: 0.2
+  early_stop_patience: 7
+  class_weighted_loss: true
+  loss: weighted_ce
+  monitor: val_weighted_logloss
+  monitor_mode: min
+  device: auto
+
+eval:
+  compare_against: runs/e0_baseline_real

@@ -1,247 +1,116 @@
 # SpineScoutX
 
-**An anatomy-grounded lumbar MRI finding-graph system for research-only degenerative spine analysis.**
+**A research-only lumbar-MRI pipeline that reads a study with no ground-truth coordinates
+and outputs a non-diagnostic, severe-safety-aware *research finding graph* — per level, per
+condition, with calibrated confidence and review flags — validated on a patient-level
+locked test.**
 
-> ⚠️ **Research-only.** SpineScoutX is a research and educational prototype. It is
-> **not diagnostic, not clinically validated, and not for medical decision-making.**
-> It uses public **non-commercial** research datasets and does not redistribute them.
+> ⚠️ **Research-only · not diagnostic · not clinically validated · not for medical
+> decision-making · no treatment recommendations.** Severity values are *research findings /
+> severity estimates*, never a diagnosis. Public non-commercial data (RSNA LumbarDISC;
+> SPIDER CC BY 4.0); no data redistributed.
 
----
+## What does it output?
+A study-level **finding graph** — this is the actual model output (structured, no DICOM
+pixels), one row per (condition, level, side): severity estimate, P(severe), calibrated
+confidence, uncertainty flag, `review_required` + reason, view route, and provenance:
 
-## 1. Project summary
+![example finding graph](docs/assets/showcase/finding_graph_example.png)
 
-SpineScoutX studies whether **explicit anatomical priors** (vertebra / disc /
-spinal-canal masks) improve disc-level lumbar degeneration *finding grading*. It
-connects:
+## Example case (real locked-test output, anonymized)
+![canal severe case](docs/assets/showcase/case_canal_severe_card.png)
 
-- disc-level degenerative **finding grading** (RSNA),
-- anatomical **segmentation priors** (SPIDER),
-- **anatomical evidence-consistency** scoring (AEC),
-- **calibration-aware**, uncertainty-flagged output,
-- deterministic **structured finding graphs** and non-diagnostic reports.
+Confident findings are `high_confidence`; borderline ones are flagged `review_required`
+with an explicit reason (low confidence, model disagreement, near-severe, axial-level
+uncertainty). Provenance is `auto` — **no ground-truth coordinates at inference**. More
+cases (incl. failures) in the **[gallery](docs/gallery.md)**.
 
-It is **not** a demo classifier and **not** a clinical product.
+## Current capability — 5/5 findings have real auto inference
+![coverage](docs/assets/coverage_dashboard.png)
 
-## 2. Research question
-
-> Can explicit anatomical priors improve the reliability, severe-case recall,
-> calibration, and visual evidence localization of disc-level lumbar degeneration
-> grading?
-
-**Hypothesis.** An anatomy-guided model using vertebra/disc/canal priors should
-improve severe-case recall, calibration, and anatomical evidence consistency
-versus an image-only crop classifier — *or at minimum* produce more anatomically
-meaningful visual evidence even if raw classification metrics do not improve.
-
-## 3. Novelty statement (precise)
-
-Prior work exists. **SpineScoutX does not claim to be the first AI lumbar spine
-system** — DeepSPINE and other lumbar stenosis/grading systems predate it. The
-contribution is scoped to:
-
-- anatomy-grounded **finding-graph** generation;
-- **cross-dataset anatomy transfer** (SPIDER segmentation → RSNA grading);
-- **anatomical evidence-consistency** scoring (AEC);
-- **counterfactual anatomy ablation** (correct / shuffled / zero / noise);
-- **calibration-aware, non-diagnostic structured reporting**;
-- minimal, license-aware, reproducible research engineering.
-
-## 4. Datasets
-
-| Dataset | Role | Levels / classes | License |
-|---|---|---|---|
-| RSNA 2024 Lumbar Spine Degenerative Classification | disc-level grading (primary) | L1/L2…L5/S1; `normal_mild`/`moderate`/`severe`; 5 conditions | **non-commercial research only** |
-| SPIDER Lumbar Spine Segmentation | anatomy priors | vertebra / disc / spinal canal | **CC BY 4.0** (attribution) |
-
-Conditions: spinal canal stenosis; left/right neural foraminal narrowing;
-left/right subarticular stenosis. See [`docs/data_setup.md`](docs/data_setup.md).
-
-## 5. License / data-use warnings
-
-- Source **code**: MIT (see [`LICENSE`](LICENSE)).
-- **Datasets are not covered by MIT** and are **not** included. RSNA = non-commercial
-  research; SPIDER = CC BY 4.0. You must obtain them yourself under their terms.
-- No DICOMs, NIfTI volumes, masks, checkpoints, or caches are committed.
-
-### Real-data results
-
-All experiments were run on **real** data (RSNA via Kaggle; SPIDER via Zenodo, CC
-BY 4.0). Held-out validation:
-
-| metric | E0 image-only | E1 anatomy-guided |
+| finding | view route | locked-test **auto** severe recall [95% CI] |
 |---|---|---|
-| weighted log loss ↓ | 0.4621 | **0.4579** |
-| macro F1 ↑ | 0.706 | **0.717** |
-| **severe recall** ↑ | **0.751** | 0.711 |
-| severe AUROC ↑ | 0.971 | 0.972 |
-| ECE ↓ | **0.027** | 0.034 |
+| spinal canal stenosis | sagittal-T2 | **0.830 [0.725, 0.929]** |
+| left neural foraminal narrowing | sagittal-T1 | **0.788 [0.673, 0.892]** |
+| right neural foraminal narrowing | sagittal-T1 | **0.660 [0.524, 0.788]** |
+| left subarticular stenosis | axial-T2 | **0.746 [0.674, 0.815]** |
+| right subarticular stenosis | axial-T2 | **0.737 [0.667, 0.807]** |
 
-- **E4 SPIDER segmentation:** mean Dice **0.884** (canal 0.902, vertebra 0.903).
-- **Headline finding (honest):** explicit anatomy priors give only a marginal,
-  mixed change vs the image-only baseline, and the **counterfactual ablation shows
-  E1 largely ignores the anatomy branch** (zero ≈ shuffle ≈ correct, |Δ log loss| <
-  0.001). So anatomy priors do **not** meaningfully improve grading in this setup —
-  reported as an honest negative/nuanced result, not an improvement claim. The
-  ablation is what prevents over-claiming the tiny aggregate edge. Full detail +
-  failure analysis: [`docs/results.md`](docs/results.md).
+Every number is on a **never-tuned patient-level locked test**, auto = real inference, with
+cluster-bootstrap CIs. *Core finding:* robust auto-training helps in proportion to the
+oracle→auto gap (it recovers canal & subarticular where localization is hard; foraminal's
+clean localizer needs none — grader chosen per condition).
 
-No data, DICOMs, masks, crops, caches, weights, or runs are committed.
+## Evidence-aware intelligence (v1.1)
+![evidence stability](docs/assets/showcase/evidence_stability_dashboard.png)
 
-## 6. Quickstart
+Beyond a single prediction, each finding now carries an **evidence-stability** signal: the
+same grader is re-run on K plausible localizer perturbations (in-plane jitter + slice shift,
+from auto coordinates only — **no ground truth**) and we measure how much P(severe) moves.
+Honest results (locked-test auto, baseline reproduces the deployed predictions exactly):
 
+- **Instability predicts errors** (pooled AUROC 0.80) and severe false-negatives (0.71) —
+  above chance — but is **largely redundant with confidence** (we do not overclaim).
+- It **adds severe-FN triage value on exactly the 2 weakest right-side routes**
+  (right-foraminal capture 0.72→0.89 @30% review; right-subarticular 0.42→0.56 @20%).
+- **Robust-trained graders are more stable** (canal 75% stable) than the oracle-trained
+  foraminal grader (44%) — stability validates the robust-training thesis.
+
+It feeds the finding graph's `evidence_stability` + `route_quality` fields and Safety Mode
+v5's review reasons. See [`evidence_stability_v1.md`](docs/run_logs/evidence_stability_v1.md).
+
+## Safety Mode (severe-first, evidence-aware v5)
+![safety](docs/assets/safety_mode_dashboard.png)
+
+Per condition: severe-recall vs false-alarm frontier + a `review_required` layer
+(low confidence · model disagreement · **evidence-unstable** · axial-level uncertainty).
+Reaching 90% severe recall has an explicit false-alarm / review cost — reported, never
+hidden. **Calibration is a documented negative:** the graders are already well-calibrated
+(test ECE 0.03–0.08), so dev-fit temperature does not transfer — the deployed path keeps raw
+probabilities. See [`safety_mode_v5.md`](docs/run_logs/safety_mode_v5.md).
+
+## Where it fails (shown, not hidden)
+Right-foraminal trails left (within CI overlap) — **precisely characterized:** 56% of its
+severe misses are *confidently normal* (a signal/sample limit, not threshold-fixable; at
+at L4-L5 right). Severe recall is robust across resolution/matrix size but **weaker at L5-S1
+(0.579) vs L4-L5 (0.868)** ([domain-shift audit](docs/run_logs/external_validation_audit.md));
+the axial level scorer is imperfect (±1 slice-hit 0.43 — the grader tolerates it); severe
+counts are modest (wide CIs); **no external/prospective validation.** See the
+**[failure gallery](docs/gallery.md#7-failure--uncertainty-gallery-shown-not-hidden)** and
+**[trust & limitations](docs/trust_and_limitations.md)**.
+
+## Quickstart
 ```bash
-pip install -e .            # core (CPU/GPU). Add extras as needed:
-pip install -e ".[dicom,parquet]"   # decode real RSNA DICOMs + parquet manifests
-
-spinescoutx doctor                  # environment check (no data needed)
-pytest -q                           # full suite on synthetic fixtures (no data needed)
-
-# With data (see docs/data_setup.md):
-spinescoutx prepare-rsna  --rsna-root data/raw/rsna   --out data/cache/rsna
-spinescoutx prepare-spider --spider-root data/raw/spider --out data/cache/spider
-spinescoutx train-classifier      --config configs/baseline_image_only.yaml
-spinescoutx train-segmenter       --config configs/segmentation_spider.yaml
-spinescoutx train-anatomy-guided  --config configs/anatomy_guided.yaml
-spinescoutx ablate                --config configs/ablation.yaml
-spinescoutx evaluate --run runs/e0_baseline_image_only
-spinescoutx report   --study-id <ID> --run runs/e1_anatomy_guided
-spinescoutx figure   --report outputs/reports/<ID>.json
+pip install -e .
+spinescoutx doctor --data                      # checks RSNA/SPIDER + deps
+# data required (docs/data_setup.md). Regenerate the model-output showcase:
+python scripts/make_model_output_showcase.py   # finding-graph cards + JSON/MD pack (v5)
+python scripts/run_evidence_stability.py       # evidence-stability scoring + eval
+python scripts/run_safety_mode_v5.py           # evidence-aware severe-first dashboard
+python scripts/run_domain_shift_audit.py       # internal domain-shift stress test
+# reproduce the locked-test routes:
+python scripts/build_splits_v1.py
+python scripts/run_canal_locked_test.py && python scripts/run_foraminal_locked_test.py
+python scripts/run_axial_level_scorer.py && python scripts/run_subarticular_locked_test.py
 ```
 
-You can run a no-data synthetic smoke of the whole pipeline by setting
-`data.synthetic: true` in a config (used by the tests).
+## Trust & limitations (read this)
+**An academic research prototype, not an FDA/CE-cleared medical product.** No external,
+prospective, or reader-study validation. Not diagnostic, not clinical. Details:
+[`docs/trust_and_limitations.md`](docs/trust_and_limitations.md),
+[`docs/safety.md`](docs/safety.md).
 
-## 7. CLI commands
+## Full docs
+- 🖼 [Gallery](docs/gallery.md) · 📊 [Results + CIs](docs/results.md) ·
+  🧪 [Technical report](docs/technical_report.md)
+- 🪪 [Model card](docs/model_card.md) · [Dataset card](docs/dataset_card.md) ·
+  🔒 [Safety policy](docs/safety.md) · 🔁 [Reproducibility](docs/reproducibility.md)
+- 🧩 [Output schema v5](docs/run_logs/report_schema_v5.md) ·
+  [Output audit](docs/run_logs/output_intelligence_audit.md) ·
+  🧭 [Evidence stability](docs/run_logs/evidence_stability_v1.md) ·
+  [Domain-shift audit](docs/run_logs/external_validation_audit.md)
 
-| Command | Purpose |
-|---|---|
-| `doctor` | environment & optional-dependency check |
-| `prepare-rsna` / `prepare-spider` | index + cache a dataset (fails clearly if missing) |
-| `train-classifier` (E0) | image-only baseline |
-| `train-segmenter` (E4) | SPIDER anatomy segmenter |
-| `train-anatomy-guided` (E1) | anatomy-guided classifier |
-| `evaluate` | metrics for a finished run |
-| `ablate` (E2/E3) | counterfactual anatomy ablations |
-| `report` | finding-graph JSON + Markdown for a study |
-| `figure` | visual panels from a report |
-| `benchmark` | inference latency / memory for a run |
-
-Every command supports `--help` and `--json` (machine-readable log line).
-
-## 8. Pipeline (text diagram)
-
-```
-DICOM ingestion
-  -> metadata index (series classification / selection)
-  -> disc-level localizer matching
-  -> disc-level 2.5D crop extraction (prev/center/next slice)
-  -> SPIDER segmentation model (anatomy priors: vertebra/disc/canal)
-  -> [E0] image-only classifier        \
-  -> [E1] anatomy-guided classifier      >  Grad-CAM evidence -> AEC scoring
-  -> calibration (ECE, temperature, uncertainty flags)
-  -> deterministic finding graph (JSON)
-  -> Markdown report + visual panels
-```
-
-## 9. Experiments E0–E7
-
-| ID | Experiment |
-|---|---|
-| **E0** | Image-only baseline classifier |
-| **E1** | Anatomy-guided classifier (image + anatomy priors + level/condition embeddings) |
-| **E2** | Ablation — anatomy prior **shuffled** from another study |
-| **E3** | Ablation — anatomy prior **zeroed** (also `noise`, optional) |
-| **E4** | SPIDER anatomy **segmenter** |
-| **E5** | **Evidence** (Grad-CAM heatmaps + AEC + leakage + peak-to-localizer) |
-| **E6** | **Calibration** (ECE, reliability diagram, temperature scaling) |
-| **E7** | **Runtime** (preprocessing / training / inference / memory) |
-
-## 10. Metrics
-
-- **Classification:** RSNA-style weighted log loss, macro-F1, per-condition &
-  per-level F1, **severe recall**, severe FNR, severe one-vs-rest AUROC, confusion
-  matrix, balanced accuracy, ECE.
-- **Segmentation:** Dice & IoU per class, mean Dice, **canal Dice**, inference latency.
-- **Evidence:** **AEC**, evidence leakage, peak-to-localizer distance, report
-  completeness, uncertainty coverage, failure cases.
-- **Runtime:** preprocessing / training / inference time, GPU peak memory, CPU fallback.
-
-## 11. Reproducibility
-
-- Deterministic seeding (`spinescoutx.utils.seed`); patient/study-level splits with
-  recorded seed + timestamp; no image-level splitting; leakage check enforced.
-- Config-hash + manifest-hash cache invalidation; decoded crops / masks cached.
-- Typed YAML configs; best+last checkpoints only; compact metrics logs.
-
-## 12. Limitations
-
-- **Anatomy ≠ pathology.** SPIDER priors are anatomy masks (vertebra/disc/canal),
-  **not** pathology or stenosis masks.
-- **Approximate regions.** Foraminal and lateral-recess evidence regions are
-  approximations (SPIDER has no such labels) and are flagged accordingly.
-- **No clinical/external validation.** Public non-commercial research data only.
-- Improvements are reported **only** when measured against the E0 baseline.
-
-## 13. Forbidden claims
-
-The following must **never** appear as claims about SpineScoutX (only inside this
-section, as the list of things we do *not* claim): "diagnostic"; "clinically
-validated"; "medical decision-making"; "commercial medical diagnosis";
-"automatically detects all lumbar abnormalities"; "first AI system for lumbar disc
-disease"; "approved"; "doctor replacement".
-
-**Allowed public claim:** *"SpineScoutX is a research-only prototype that studies
-anatomy-grounded lumbar MRI degenerative finding graphs using public
-non-commercial research datasets. It is not diagnostic, not clinically validated,
-and not for medical decision-making."*
-
-## 14. Example output schema (finding graph)
-
-```json
-{
-  "study_id": "12345",
-  "research_only": true,
-  "not_diagnostic": true,
-  "dataset_source": "rsna",
-  "model_version": "0.1.0",
-  "run_id": "e1_anatomy_guided",
-  "findings": [
-    {
-      "level": "l4_l5",
-      "condition": "spinal_canal_stenosis",
-      "side": null,
-      "grade": "moderate",
-      "confidence": 0.71,
-      "calibrated_confidence": 0.64,
-      "uncertainty_flag": "moderate_confidence",
-      "evidence_consistency": 0.58,
-      "evidence_region": "spinal_canal",
-      "evidence_region_source": "anatomy",
-      "evidence_image_path": "outputs/figures/12345_l4_l5_scs.png",
-      "crop_path": "data/cache/rsna/crops/12345_l4_l5_scs.npy",
-      "notes": ""
-    }
-  ],
-  "limitations": ["...non-commercial research data...", "...not diagnostic...", "..."]
-}
-```
-
-## 15. Citation / attribution
-
-If you use SpineScoutX, please also cite the underlying datasets:
-
-- **RSNA 2024 Lumbar Spine Degenerative Classification** (Radiological Society of
-  North America) — non-commercial research use.
-- **SPIDER** Lumbar Spine MRI Segmentation dataset — *van der Graaf et al.*,
-  licensed CC BY 4.0 (attribution required).
-
-```bibtex
-@software{spinescoutx,
-  title  = {SpineScoutX: anatomy-grounded lumbar MRI finding graphs (research-only)},
-  year   = {2026},
-  note   = {Research prototype. Not diagnostic; not clinically validated.}
-}
-```
-
-See [`docs/technical_report.md`](docs/technical_report.md) for methods, metrics,
-ablations, and **honest failure cases**.
+## License
+Code: MIT ([`LICENSE`](LICENSE)). **Datasets are NOT covered by MIT** and are not included
+(RSNA non-commercial; SPIDER CC BY 4.0). No DICOMs, masks, checkpoints, caches, or runs are
+committed.

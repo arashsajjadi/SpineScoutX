@@ -1,0 +1,32 @@
+# L0 (REAL) — disc-level keypoint localizer (heatmap regression on sagittal T2).
+# Predicts the 5 lumbar disc-level points so crops can be placed WITHOUT GT
+# coordinates at inference (auto_crop). Requires:
+#   spinescoutx prepare-localizer --rsna-root data/raw/rsna --out data/cache/rsna_localizer
+name: l0_disc_localizer_real
+seed: 1337
+task: localize
+output_root: runs
+
+data:
+  rsna_cache: data/cache/rsna_localizer   # localizer slice+keypoint cache
+  crop_size: 256                          # slice_size for the localizer input/heatmaps
+  num_workers: 8
+  split_seed: 1337
+  val_fraction: 0.2
+
+model:
+  kind: disc_localizer
+  backbone: unet
+  in_chans: 1
+  embed_dim: 16        # U-Net base width = 2*embed_dim (>=32)
+
+train:
+  epochs: 30
+  batch_size: 16
+  lr: 0.001
+  weight_decay: 0.00001
+  amp: true
+  early_stop_patience: 8
+  monitor: val_mean_px_dist
+  monitor_mode: min
+  device: auto

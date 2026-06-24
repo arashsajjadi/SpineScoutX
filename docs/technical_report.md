@@ -14,16 +14,64 @@ interpretation in [`results.md`](results.md):
   macro F1 0.706, severe recall **0.751**, severe AUROC **0.971**, ECE 0.027.
 - **E1 anatomy-guided:** weighted log loss 0.458, macro F1 0.717, severe recall
   0.711, ECE 0.034 — a marginal, mixed change vs E0.
-- **Counterfactual ablation (decisive):** zeroing / shuffling / noising the anatomy
-  prior changes weighted log loss by **< 0.001** ⇒ **E1 largely ignores the anatomy
-  branch**; the small E1>E0 aggregate edge is **not** attributable to anatomy.
+- **E1 ablation (v0.4, decisive):** zeroing / shuffling / noising the anatomy prior
+  changes weighted log loss by **< 0.001** ⇒ **E1 (concat fusion) largely ignores
+  anatomy**; its small aggregate edge is **not** attributable to anatomy.
+- **E2 anatomy-forced (v0.5):** region-pooling + global-feature dropout. Its ablation
+  shows zero/noise/wrong-region degrade weighted log loss by **0.014–0.020** (~**20×**
+  E1) ⇒ **E2 measurably USES anatomy**, and `target_region_only` is the best mode.
+  E2 also exposes a higher severe-recall frontier (sevR **0.855** reachable vs E0
+  0.751). It is not a free aggregate win (E2 ≈ E0 at the selected checkpoint) and AEC
+  stays ≈ 0.10. Full detail: [`results.md`](results.md).
 
-**Answer to the research question:** in this implementation, explicit anatomy priors
-do **not** meaningfully improve disc-level grading, and the model does not rely on
-them (mean AEC ≈ 0.10, flat across perturbations). We report this **negative/nuanced
-result honestly** — the ablation is precisely what prevents a false "anatomy helps"
-claim from the tiny aggregate edge. The synthetic smoke (§9.2) is retained only as a
-no-data CI path and is clearly separated from these real results.
+- **v0.6/v0.9 — honest auto-inference (the headline since v0.5):** the metrics above
+  are **oracle-crop upper bounds**. A disc-level localizer + a controlled 2×2
+  decomposition show the oracle→auto canal severe-recall collapse (0.828→0.644) is
+  **entirely in-plane crop-centre error** (in-plane −0.184 [−0.291, −0.089], decisive;
+  slice +0.011, not decisive). Training the grader on **auto-localized crops** recovers
+  it — auto severe recall **0.793 [0.696, 0.881]**, a paired **+0.149 [+0.050, +0.243]**
+  over the deployed E0 (decisive; McNemar p=0.007) — with better auto log loss and a
+  stronger severe-first Safety Mode frontier. Full detail: `results.md`,
+  `run_logs/robust_auto_experiments.md`.
+- **v0.10–v0.12 — locked test, multi-condition, Safety Mode v2:** on a never-tuned
+  patient-level locked test (`splits_v1`), the canal auto result is **confirmed and
+  amplified** (auto severe recall 0.830 [0.725, 0.929] vs the oracle-trained control's
+  0.434; paired +0.396 [+0.268, +0.529]; McNemar 21/0, p<1e-6; ~96% of the oracle
+  ceiling). Multi-condition locked-test **oracle** baselines (upper bounds): canal 0.925,
+  foraminal 0.77/0.81, subarticular 0.79/0.85 severe recall. The **view-routing taxonomy**
+  shows generalization is gated by view-specific localization (canal=sagittal-T2 ✓;
+  foraminal=sagittal-T1; subarticular=axial-T2), not the grading recipe. Safety Mode v2:
+  the auto-robust grader gives the best frontier (recall@FAR≤10% 0.943; 90% severe recall
+  at 8.5% FAR); naive cost-sensitive (expected-cost) **training is brittle and dominated**
+  (an honest negative). Detail: `results.md`, `run_logs/{locked_test_protocol,
+  canal_locked_test,multicondition_robust_results,safety_mode_v2}.md`.
+- **v0.13–v0.15 — five-finding auto (locked test): coverage 1/5 → 3/5.** A sagittal-T1
+  side-aware **foraminal** localizer (median 2.2 px, crop-hit 0.999; DICOM-based laterality)
+  unlocks real auto inference for L/R foraminal narrowing: deployable auto severe recall
+  left 0.788 [0.673, 0.892], right 0.660 [0.524, 0.788]. Robust auto-training *hurt*
+  foraminal (its clean localizer makes the oracle→auto gap small) — so the benefit of
+  robust auto-training scales with the gap size, and the grader is chosen per condition
+  (canal→auto-trained, foraminal→oracle-trained). **Subarticular (axial-T2)** is a measured
+  blocker: z-based level matching reaches only 27.5% within ±1 axial slice. Safety Mode v3
+  spans all 3 auto conditions; a non-diagnostic multi-condition study report labels auto vs
+  blocked findings. (Superseded below.) Detail: `run_logs/foraminal_auto_results.md`.
+- **v0.16–v1.0 — five-finding auto (locked test): coverage 3/5 → 5/5.** The axial
+  subarticular blocker is solved with a **coordinate-supervised axial level scorer**
+  (appearance ⊕ normalized-z, monotonic decoding; ±1 slice-hit 0.43 vs geometry's 0.275) +
+  a fixed supervision-derived in-plane offset. The oracle-trained grader collapses on the
+  (imperfectly leveled) auto crops, but the **auto-trained robust grader recovers** to
+  left 0.746 [0.674, 0.815] / right 0.737 [0.667, 0.807] severe recall (paired +0.50/+0.37
+  vs control, McNemar p<1e-12; ~96–97% of the oracle ceiling). All five RSNA findings now
+  have real auto locked-test results; Safety Mode v4 + a per-condition router cover 5/5. The
+  unifying result: robust auto-training helps in proportion to the oracle→auto gap (recovers
+  canal & subarticular; foraminal's clean localizer needs none). Detail:
+  `run_logs/{subarticular_auto_results,safety_mode_v4}.md`, `results.md`.
+
+**Answer to the research question:** *concatenating* anatomy priors does not help
+(the model ignores them); making the model **structurally region-forced** does make
+anatomy operationally used and lifts the severe-recall frontier, though not aggregate
+accuracy or evidence localization in this first version. Reported exactly as
+measured. The synthetic smoke (§9.3) is a no-data CI path only.
 
 ## 1. Abstract
 
@@ -226,7 +274,10 @@ inconsistent Grad-CAM heatmaps in the synthetic evidence panel. None cherry-pick
 
 ## 15. Limitations
 
-- **No real-data results** in this environment (datasets absent).
+- **Oracle-crop upper bound:** the v0.4–v0.5 grading metrics assume GT localizer
+  coordinates. The deployable auto-localized numbers are weaker (v0.6 measured the gap;
+  v0.9 decomposed it to in-plane crop-centre error and recovered ~81% of the canal
+  severe-recall gap by training on the auto distribution — see `results.md`).
 - **Anatomy ≠ pathology:** SPIDER priors are anatomy masks, not stenosis masks.
 - **Approximate regions** for foraminal/subarticular AEC (flagged everywhere).
 - **No clinical or external validation.**

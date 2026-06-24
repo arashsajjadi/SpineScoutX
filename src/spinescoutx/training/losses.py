@@ -75,6 +75,66 @@ class FocalLoss(nn.Module):
         return loss.mean()
 
 
+def severe_aware_cost_matrix(
+    num_classes: int = NUM_SEVERITY_CLASSES,
+    *,
+    fn_severe: float = 10.0,
+    fn_moderate: float = 2.0,
+    over_call: float = 1.0,
+) -> torch.Tensor:
+    """Asymmetric cost matrix ``C[true, pred]`` for ordinal severity grading.
+
+    Under-grading a severe finding (true severe, predicted normal/mild) is the most
+    costly entry; under-grading moderate is next; over-grading (predicting a higher
+    severity than truth) costs ``over_call`` per step. The diagonal is 0. Used by
+    :class:`ExpectedCostLoss` to make severe false-negatives expensive at training
+    time, complementing the inference-time Safety Mode.
+    """
+    c = torch.zeros((num_classes, num_classes), dtype=torch.float32)
+    severe = num_classes - 1
+    for true in range(num_classes):
+        for pred in range(num_classes):
+            if pred == true:
+                continue
+            if pred < true:  # under-grading
+                gap = true - pred
+                if true == severe:
+                    c[true, pred] = fn_severe if pred == 0 else fn_moderate * gap
+                else:
+                    c[true, pred] = fn_moderate * gap
+            else:  # over-grading (false-alarm direction)
+                c[true, pred] = over_call * (pred - true)
+    return c
+
+
+class ExpectedCostLoss(nn.Module):
+    """Differentiable expected-cost loss: ``mean_i sum_j p_i[j] * C[y_i, j]``.
+
+    Minimises the expected misclassification cost under an asymmetric cost matrix
+    (see :func:`severe_aware_cost_matrix`), so the model is penalised in proportion to
+    how much probability it puts on costly (e.g. severe-miss) predictions.
+    """
+
+    def __init__(self, cost_matrix: torch.Tensor, weight: torch.Tensor | None = None) -> None:
+        super().__init__()
+        self.register_buffer("cost", cost_matrix.to(dtype=torch.float32))
+        if weight is None:
+            self.register_buffer("weight", None, persistent=False)
+        else:
+            self.register_buffer("weight", weight.to(dtype=torch.float32), persistent=False)
+
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        probs = torch.softmax(logits, dim=1)
+        costs = self.cost.to(device=logits.device)[targets.long()]  # (B, C)
+        per_sample = (probs * costs).sum(dim=1)
+        # Per-class weighting is essential on imbalanced data: without it the expected
+        # cost is minimised by a degenerate "predict the cheap middle class" hedge.
+        if self.weight is not None:
+            w = self.weight.to(device=logits.device, dtype=logits.dtype)[targets.long()]
+            return (per_sample * w).sum() / w.sum().clamp_min(1e-8)
+        return per_sample.mean()
+
+
 def _to_onehot(target: torch.Tensor, num_classes: int) -> torch.Tensor:
     """Convert an index label map to a one-hot float tensor with class dim at 1.
 
@@ -203,6 +263,16 @@ def build_classification_loss(
     weights = class_weights if train_cfg.class_weighted_loss else None
     loss_name = train_cfg.loss
 
+    if loss_name == "cost_sensitive":
+        # Pass class weights (when enabled) so the expected-cost objective does not
+        # collapse to the cheap middle class on imbalanced severity data.
+        module = ExpectedCostLoss(severe_aware_cost_matrix(), weight=weights)
+
+        def _cost(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+            return module(logits, targets)
+
+        return _cost
+
     if loss_name == "focal":
         module = FocalLoss(weight=weights)
 
@@ -234,6 +304,8 @@ __all__ = [
     "severity_class_weights",
     "weighted_cross_entropy",
     "FocalLoss",
+    "ExpectedCostLoss",
+    "severe_aware_cost_matrix",
     "soft_dice_loss",
     "DiceCELoss",
     "DiceFocalLoss",
