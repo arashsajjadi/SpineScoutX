@@ -115,14 +115,24 @@ class ExpectedCostLoss(nn.Module):
     how much probability it puts on costly (e.g. severe-miss) predictions.
     """
 
-    def __init__(self, cost_matrix: torch.Tensor) -> None:
+    def __init__(self, cost_matrix: torch.Tensor, weight: torch.Tensor | None = None) -> None:
         super().__init__()
         self.register_buffer("cost", cost_matrix.to(dtype=torch.float32))
+        if weight is None:
+            self.register_buffer("weight", None, persistent=False)
+        else:
+            self.register_buffer("weight", weight.to(dtype=torch.float32), persistent=False)
 
     def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         probs = torch.softmax(logits, dim=1)
         costs = self.cost.to(device=logits.device)[targets.long()]  # (B, C)
-        return (probs * costs).sum(dim=1).mean()
+        per_sample = (probs * costs).sum(dim=1)
+        # Per-class weighting is essential on imbalanced data: without it the expected
+        # cost is minimised by a degenerate "predict the cheap middle class" hedge.
+        if self.weight is not None:
+            w = self.weight.to(device=logits.device, dtype=logits.dtype)[targets.long()]
+            return (per_sample * w).sum() / w.sum().clamp_min(1e-8)
+        return per_sample.mean()
 
 
 def _to_onehot(target: torch.Tensor, num_classes: int) -> torch.Tensor:
@@ -254,7 +264,9 @@ def build_classification_loss(
     loss_name = train_cfg.loss
 
     if loss_name == "cost_sensitive":
-        module = ExpectedCostLoss(severe_aware_cost_matrix())
+        # Pass class weights (when enabled) so the expected-cost objective does not
+        # collapse to the cheap middle class on imbalanced severity data.
+        module = ExpectedCostLoss(severe_aware_cost_matrix(), weight=weights)
 
         def _cost(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
             return module(logits, targets)
