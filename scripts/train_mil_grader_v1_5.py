@@ -137,6 +137,28 @@ def _eval(model, loader, device):
     return y, p, np.array(sts)
 
 
+def _dump_preds(model, df, cache_root, device, split):
+    """Per-finding MIL probs aligned to df rows (shuffle=False preserves order) for a paired
+    baseline-vs-MIL comparison. Key = ``study|level|condition`` (matches collect_probs re-key)."""
+    import pandas as pd
+
+    y, p, _ = _eval(model, _loader(df, cache_root, train=False, severe_over=False), device)
+    d = df.reset_index(drop=True)
+    return pd.DataFrame(
+        {
+            "key": [f"{r.study_id}|{r.level}|{r.condition}" for r in d.itertuples()],
+            "study_id": d["study_id"].astype(str).to_numpy(),
+            "level": d["level"].astype(str).to_numpy(),
+            "condition": d["condition"].astype(str).to_numpy(),
+            "split": split,
+            "y": y,
+            "p_normal": p[:, 0],
+            "p_moderate": p[:, 1],
+            "p_severe": p[:, 2],
+        }
+    )
+
+
 def train_one(cfg, tr_df, dv_df, cache_root, warm_sd, device, epochs):
     seed_everything(cfg["seed"])
     model = build_mil_grader(
@@ -149,10 +171,9 @@ def train_one(cfg, tr_df, dv_df, cache_root, warm_sd, device, epochs):
     scaler = torch.cuda.amp.GradScaler()
     tl = _loader(tr_df, cache_root, train=True, severe_over=cfg["severe_over"])
     vl = _loader(dv_df, cache_root, train=False, severe_over=False)
-    # MODERATE class weights: sqrt-inverse-frequency, normalized (full inverse-freq spams severe)
-    freq = np.bincount(tr_df["severity_index"].to_numpy(), minlength=3).astype(float)
-    inv = 1.0 / np.sqrt(np.clip(freq, 1, None))
-    cw = torch.tensor(inv / inv.mean(), dtype=torch.float32, device=device)
+    # Let the balanced SAMPLER do the rebalancing; keep the loss weights UNIFORM to avoid
+    # double-counting the up-weighting (sampler + class-weighted loss -> all-severe spam).
+    cw = None
     # SELECT on dev recall@FAR<=10% (spam-resistant: an all-severe model has FAR~1 and low
     # recall@FAR10), with a hard guardrail rejecting argmax-severe-spam (FAR > 0.5).
     best_key, best_state, best_metrics = -1.0, None, {}
@@ -180,6 +201,11 @@ def train_one(cfg, tr_df, dv_df, cache_root, warm_sd, device, epochs):
         y, p, _ = _eval(model, vl, device)
         far = _far(y, p)
         r_at_far = bs.make_recall_at_far(0.10)(y, p)
+        print(
+            f"    ep{_ep} dev sevR {bs.m_severe_recall(y, p):.3f} FAR {far:.3f} "
+            f"r@FAR10 {r_at_far:.3f}",
+            flush=True,
+        )
         key = r_at_far if far <= 0.5 else -1.0  # reject severe-spam epochs
         if key > best_key:
             best_key = key
@@ -204,7 +230,8 @@ def train_one(cfg, tr_df, dv_df, cache_root, warm_sd, device, epochs):
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--route", required=True, choices=list(ROUTE_CFG))
-    ap.add_argument("--epochs", type=int, default=10)
+    ap.add_argument("--epochs", type=int, default=8)
+    ap.add_argument("--configs", nargs="*", default=["attn", "max"])
     ap.add_argument("--max-train", type=int, default=0, help="0=all train bags")
     args = ap.parse_args()
     device = select_device("auto")
@@ -224,9 +251,16 @@ def main() -> int:
     if wp.exists():
         warm_sd = torch.load(wp, map_location="cpu")["state_dict"]
 
-    configs = [
-        {"pooling": "attention", "loss": "focal", "severe_over": True, "lr": 3e-4, "seed": 1337},
-        {
+    # bounded sweep (configurable via --configs); default = one strong config for budget.
+    all_cfgs = {
+        "attn": {
+            "pooling": "attention",
+            "loss": "focal",
+            "severe_over": True,
+            "lr": 3e-4,
+            "seed": 1337,
+        },
+        "gated": {
             "pooling": "gated",
             "loss": "focal",
             "severe_over": True,
@@ -234,8 +268,9 @@ def main() -> int:
             "idrop": 0.1,
             "seed": 1337,
         },
-        {"pooling": "max", "loss": "ce", "severe_over": True, "lr": 3e-4, "seed": 1337},
-    ]
+        "max": {"pooling": "max", "loss": "ce", "severe_over": True, "lr": 3e-4, "seed": 1337},
+    }
+    configs = [all_cfgs[c] for c in args.configs if c in all_cfgs]
     results = []
     best = None  # (model, dev_recall_at_far10, cfg, dev_metrics)
     for cfg in configs:
@@ -285,6 +320,18 @@ def main() -> int:
         }
     OUTDIR.mkdir(parents=True, exist_ok=True)
     (OUTDIR / f"mil_{args.route}_v1_5.json").write_text(json.dumps(out, indent=2, default=float))
+    # save best checkpoint (gitignored runs/) + per-finding dev+test probs for paired comparison
+    ckpt_dir = ROOT / f"runs/mil_{args.route}_v1_5"
+    ckpt_dir.mkdir(parents=True, exist_ok=True)
+    torch.save({"state_dict": model.state_dict(), "config": cfg}, ckpt_dir / "best.pt")
+    preds = pd.concat(
+        [
+            _dump_preds(model, dv, cache_root, device, "dev"),
+            _dump_preds(model, te, cache_root, device, "test"),
+        ],
+        ignore_index=True,
+    )
+    preds.to_parquet(OUTDIR / f"mil_{args.route}_v1_5_preds.parquet", index=False)
     print(f"\n[{args.route}] dev best {cfg['pooling']}/{cfg['loss']} dev_sr={dev_sr:.3f}")
     for cond, d in out["per_condition"].items():
         ci = d["ci"]
