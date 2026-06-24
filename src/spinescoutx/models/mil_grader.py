@@ -50,8 +50,9 @@ class MILGrader(nn.Module):
 
     def _pool(self, h: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         # h: (B, K, feat); mask: (B, K) bool (True = valid instance)
+        neg = torch.finfo(h.dtype).min  # dtype-safe -inf (works under AMP float16)
         if self.pooling in ("max", "mean"):
-            hm = h.masked_fill(~mask.unsqueeze(-1), -1e9 if self.pooling == "max" else 0.0)
+            hm = h.masked_fill(~mask.unsqueeze(-1), neg if self.pooling == "max" else 0.0)
             if self.pooling == "max":
                 return hm.max(dim=1).values
             denom = mask.sum(1, keepdim=True).clamp(min=1)
@@ -63,7 +64,7 @@ class MILGrader(nn.Module):
         if self.training and self.instance_dropout > 0:
             drop = (torch.rand_like(scores) < self.instance_dropout) & mask
             mask = mask & ~drop
-        scores = scores.masked_fill(~mask, -1e9)
+        scores = scores.masked_fill(~mask, torch.finfo(scores.dtype).min)
         w = torch.softmax(scores, dim=1).unsqueeze(-1)  # (B, K, 1)
         return (w * h).sum(dim=1)
 

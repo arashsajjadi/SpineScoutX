@@ -96,14 +96,22 @@ def focal_loss(logits, target, gamma=2.0, weight=None):
     return loss.mean()
 
 
+def _far(y, p):
+    """Argmax false-alarm rate = P(pred severe | true not severe)."""
+    neg = y != 2
+    if neg.sum() == 0:
+        return float("nan")
+    return float((p[neg].argmax(1) == 2).mean())
+
+
 def _loader(df, cache_root, *, train, severe_over):
     ds = BagDS(df, cache_root, augment=train)
     if train and severe_over:
         y = df["severity_index"].to_numpy()
-        # inverse-frequency sample weights, severe up-weighted
+        # MODERATE re-balancing: sqrt-inverse-frequency (not full inverse-freq, which collapses
+        # the model to all-severe given ~5% severe). Lifts severe representation without spam.
         freq = np.bincount(y, minlength=3).astype(float)
-        w_class = 1.0 / np.clip(freq, 1, None)
-        w_class[2] *= 2.0  # extra severe oversampling
+        w_class = 1.0 / np.sqrt(np.clip(freq, 1, None))
         w = w_class[y]
         sampler = WeightedRandomSampler(w, num_samples=len(df), replacement=True)
         return DataLoader(ds, batch_size=16, sampler=sampler, num_workers=6, drop_last=True)
@@ -141,13 +149,13 @@ def train_one(cfg, tr_df, dv_df, cache_root, warm_sd, device, epochs):
     scaler = torch.cuda.amp.GradScaler()
     tl = _loader(tr_df, cache_root, train=True, severe_over=cfg["severe_over"])
     vl = _loader(dv_df, cache_root, train=False, severe_over=False)
+    # MODERATE class weights: sqrt-inverse-frequency, normalized (full inverse-freq spams severe)
     freq = np.bincount(tr_df["severity_index"].to_numpy(), minlength=3).astype(float)
-    cw = torch.tensor(
-        (freq.sum() / np.clip(freq, 1, None)) / (freq.sum() / np.clip(freq, 1, None)).mean(),
-        dtype=torch.float32,
-        device=device,
-    )
-    best_sr, best_state = -1.0, None
+    inv = 1.0 / np.sqrt(np.clip(freq, 1, None))
+    cw = torch.tensor(inv / inv.mean(), dtype=torch.float32, device=device)
+    # SELECT on dev recall@FAR<=10% (spam-resistant: an all-severe model has FAR~1 and low
+    # recall@FAR10), with a hard guardrail rejecting argmax-severe-spam (FAR > 0.5).
+    best_key, best_state, best_metrics = -1.0, None, {}
     for _ep in range(epochs):
         model.train()
         for b in tl:
@@ -170,12 +178,27 @@ def train_one(cfg, tr_df, dv_df, cache_root, warm_sd, device, epochs):
             scaler.update()
         sch.step()
         y, p, _ = _eval(model, vl, device)
-        sr = bs.m_severe_recall(y, p)
-        if sr > best_sr:
-            best_sr = sr
+        far = _far(y, p)
+        r_at_far = bs.make_recall_at_far(0.10)(y, p)
+        key = r_at_far if far <= 0.5 else -1.0  # reject severe-spam epochs
+        if key > best_key:
+            best_key = key
+            best_metrics = {
+                "severe_recall": float(bs.m_severe_recall(y, p)),
+                "far": float(far),
+                "recall_at_far10": float(r_at_far),
+            }
             best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+    if best_state is None:  # every epoch spammed -> keep last
+        best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+        y, p, _ = _eval(model, vl, device)
+        best_metrics = {
+            "severe_recall": float(bs.m_severe_recall(y, p)),
+            "far": float(_far(y, p)),
+            "recall_at_far10": float(bs.make_recall_at_far(0.10)(y, p)),
+        }
     model.load_state_dict(best_state)
-    return model, best_sr
+    return model, best_metrics
 
 
 def main() -> int:
@@ -214,15 +237,21 @@ def main() -> int:
         {"pooling": "max", "loss": "ce", "severe_over": True, "lr": 3e-4, "seed": 1337},
     ]
     results = []
-    best = None
+    best = None  # (model, dev_recall_at_far10, cfg, dev_metrics)
     for cfg in configs:
-        model, dev_sr = train_one(cfg, tr, dv, cache_root, warm_sd, device, args.epochs)
-        results.append({"config": cfg, "dev_severe_recall": float(dev_sr)})
-        print(f"  cfg {cfg['pooling']}/{cfg['loss']}: dev severe recall {dev_sr:.3f}", flush=True)
-        if best is None or dev_sr > best[1]:
-            best = (model, dev_sr, cfg)
+        model, dm = train_one(cfg, tr, dv, cache_root, warm_sd, device, args.epochs)
+        results.append({"config": cfg, "dev": dm})
+        print(
+            f"  cfg {cfg['pooling']}/{cfg['loss']}: dev recall@FAR10 {dm['recall_at_far10']:.3f} "
+            f"severe_recall {dm['severe_recall']:.3f} FAR {dm['far']:.3f}",
+            flush=True,
+        )
+        key = dm["recall_at_far10"]  # spam-resistant selection
+        if best is None or key > best[1]:
+            best = (model, key, cfg, dm)
     # locked-test ONCE for the dev-best config
-    model, dev_sr, cfg = best
+    model, _dev_key, cfg, dev_metrics = best
+    dev_sr = dev_metrics["severe_recall"]
     vl_te = _loader(te, cache_root, train=False, severe_over=False)
     yt, pt, stt = _eval(model, vl_te, device)
     out = {
@@ -230,12 +259,13 @@ def main() -> int:
         "conditions": conds,
         "n_train_bags": int(len(tr)),
         "best_config": cfg,
-        "dev_severe_recall": float(dev_sr),
+        "dev_metrics": dev_metrics,
         "test": {},
         "all_configs": results,
     }
     out["test"]["severe_recall"] = float(bs.m_severe_recall(yt, pt))
     out["test"]["ci"] = bs.bootstrap_ci(yt, pt, stt, bs.m_severe_recall, n_boot=2000)
+    out["test"]["far"] = _far(yt, pt)
     out["test"]["recall_at_far10"] = bs.bootstrap_ci(
         yt, pt, stt, bs.make_recall_at_far(0.10), n_boot=2000
     )
