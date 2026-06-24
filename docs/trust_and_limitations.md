@@ -17,6 +17,15 @@
 - **Auditable outputs.** Finding graphs are deterministic, schema-validated, and proven
   model-derived (not templated) by CI tests; no diagnosis/treatment wording; anonymized.
 
+## v1.4 — raw-accuracy audit (honest negative)
+- A ruthless accuracy audit found **no bug depressing severe recall**; the deployed metrics are
+  correct and reproduce exactly. So there is **no "free" accuracy** to recover from the pipeline.
+- A direct test showed the v1.3 localization gain does **not** raise subarticular grading; raw
+  severe recall is **grader-capacity / training-data limited**, not bug/decode limited.
+- **Raw severe recall is unchanged in v1.4** (macro 0.752). We did not tag an accuracy upgrade.
+  The next real gain needs more severe-class data or a higher-capacity (e.g. MIL) grader —
+  honestly out of reach for a bounded sprint. This bounds how much to trust further "tuning".
+
 ## v1.3 — real evidence viewer + honest capability wins
 - **Real evidence viewer:** committed cards are **pixel-free** (derived signals: auto crop
   centre, slice, mean intensity) to respect the RSNA data licence; the full real-pixel viewer
