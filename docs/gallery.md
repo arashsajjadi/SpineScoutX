@@ -6,26 +6,38 @@
 > Regenerate: `python scripts/make_real_case_viewer_pack.py`,
 > `python scripts/make_model_output_showcase.py`, `python scripts/make_showcase_assets.py`.
 
-## 0. Real case viewer (v1.2) — prediction vs held-out reference
-Each wide card shows, for one anonymized locked-test study: input/evidence route → **model
-prediction** → **held-out reference label** (transparency only, never an input) → code-derived
-**correctness** → safety/review → a plain-language note.
-[How to read a card](assets/cases/prediction_vs_reference_legend.png).
+## 0. Real evidence viewer (v1.3) — what the model *saw* → predicted → reference
+Each wide card (3 panels) shows, for a real locked-test case (hashed `case_*`): **A** real
+derived evidence signals (auto crop centre, slice, mean intensity — **pixel-free**, no DICOMs),
+**B** model prediction vs **held-out reference** (transparency only, never an input) with
+code-derived **correctness**, **C** evidence-v3 safety + side-aware similar cases. *Why pixel-free:*
+the data licence restricts redistributing imagery, so we ship derived signals + schematic, and
+the full real-pixel viewer runs locally ([asset policy](run_logs/real_evidence_asset_policy.md)).
 
-| category | card |
+| category | real evidence card |
 |---|---|
-| **Canal — correct severe** | ![](assets/cases/case_canal_correct_severe.png) |
-| **Left foraminal — correct severe** | ![](assets/cases/case_left_foraminal_correct_severe.png) |
-| **Right foraminal — hard (severe miss)** | ![](assets/cases/case_right_foraminal_hard.png) |
-| **Subarticular — correct severe** | ![](assets/cases/case_subarticular_correct.png) |
-| **Axial — unstable (flagged)** | ![](assets/cases/case_axial_unstable.png) |
-| **Model disagreement** | ![](assets/cases/case_model_disagreement.png) |
-| **Review catches a severe FN** | ![](assets/cases/case_review_required.png) |
-| **Mostly normal — 0 reviews** | ![](assets/cases/case_mostly_normal.png) |
+| **Canal — correct severe** | ![](assets/real_cases/case_canal_correct_severe.png) |
+| **Right foraminal — hard (severe miss)** | ![](assets/real_cases/case_right_foraminal_hard.png) |
+| **Subarticular — correct severe** | ![](assets/real_cases/case_subarticular_correct.png) |
+| **Axial — unstable (flagged)** | ![](assets/real_cases/case_axial_unstable.png) |
+| **Review catches a severe FN** | ![](assets/real_cases/case_review_required.png) |
+| **Mostly normal — 0 reviews** | ![](assets/real_cases/case_mostly_normal.png) |
 
-Cards also carry the **instability type** (crop / slice / axial-candidate / route sensitive)
-and a **similar-research-cases** severity distribution (explanation only; never changes the
-prediction). See [`real_case_viewer.md`](run_logs/real_case_viewer.md).
+See [`real_evidence_case_viewer.md`](run_logs/real_evidence_case_viewer.md). The v1.2 structured
+finding-graph cards (no evidence-signal panel) remain in [`real_case_viewer.md`](run_logs/real_case_viewer.md).
+
+## 0b. v1.3 capability results (locked test)
+| what | result |
+|---|---|
+| **Evidence intelligence v3** — severe-FN detection | ![](assets/readme/evidence_intelligence_v3_card.png) |
+| **Axial decode v2** — positional-prior localization | ![](assets/readme/axial_decode_v2_before_after.png) |
+| **Right foraminal** — v3-review triage (accuracy unchanged) | ![](assets/readme/right_foraminal_before_after.png) |
+| **Domain-shift / reliability bins** | ![](assets/readme/domain_shift_v1_3.png) |
+
+*Captions:* v3 combined risk improves severe-FN AUROC 0.833→0.863; axial prior decode improves
+±1 slice-hit 0.432→0.487 (no retrain); right-foraminal accuracy is sample-limited (unchanged) but
+its severe-FN *triage* improves; severe recall drops in low-confidence/unstable bins (the model's
+reliability signals track its weaknesses). All locked-test, research-only, reference held-out.
 
 ## 1. What the model receives → what it does
 ![pipeline](assets/hero_pipeline.png)

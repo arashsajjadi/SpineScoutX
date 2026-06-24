@@ -17,6 +17,19 @@
 - **Auditable outputs.** Finding graphs are deterministic, schema-validated, and proven
   model-derived (not templated) by CI tests; no diagnosis/treatment wording; anonymized.
 
+## v1.3 — real evidence viewer + honest capability wins
+- **Real evidence viewer:** committed cards are **pixel-free** (derived signals: auto crop
+  centre, slice, mean intensity) to respect the RSNA data licence; the full real-pixel viewer
+  runs locally only. Each card shows prediction vs **held-out reference** (never an input) with
+  code-derived correctness. See [`real_evidence_asset_policy.md`](run_logs/real_evidence_asset_policy.md).
+- **Two real, locked-test gains:** evidence-v3 severe-FN detection AUROC 0.833→0.863; axial
+  decode ±1 slice-hit 0.432→0.487 (no retrain, β dev-selected). **Baseline severe recall is
+  unchanged** — these improve *triage* and *localization*, not the headline recall.
+- **Honest negatives kept:** evidence stability alone is redundant with confidence (only the v3
+  *combination* helps); right-foraminal accuracy remains sample-limited (no specialist retrain);
+  retrieval is side-aware only via metadata (the embedding does not encode laterality); the axial
+  grading payoff is bounded (the robust grader already tolerates leveling noise).
+
 ## Real case viewer (v1.2) — see correctness for yourself
 - Every showcased study now shows the **model prediction next to the held-out reference label**
   with a **code-derived** correctness verdict. The reference is shown for transparency only and

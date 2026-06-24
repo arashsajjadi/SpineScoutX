@@ -66,6 +66,18 @@ log loss; deterministic seeds. SPIDER uses its official split.
   foraminal = oracle-trained.** Subarticular L/R remain a **measured blocker** (axial
   z-level-matching only 27.5% within ±1 slice). Safety Mode v3 covers all 3 auto conditions.
   See `run_logs/foraminal_auto_results.md`, `run_logs/safety_mode_v3.md`, `run_logs/report_v3.md`.
+- **v1.3 accuracy + real evidence (LOCKED TEST).** Two real capability wins: **evidence
+  intelligence v3** — a combined severe-FN risk score (confidence + stability + retrieval-conflict
+  + near-severe, fixed weights, no test fit) raises severe-FN detection AUROC **0.833 → 0.863**
+  pooled (most on subarticular; notably conf+stability alone is *below* confidence, so the new
+  signals carry it); and **axial decode v2** — a train-derived positional-prior monotonic decoder
+  (no CNN retrain, β dev-selected) raises axial **±1 slice-hit 0.432 → 0.487** (geometry 0.275).
+  **Side-aware retrieval v2** (same-side rate 1.00 vs v1's ~chance) and a **real evidence case
+  viewer** (pixel-free derived signals → prediction → held-out reference → correctness). **Right
+  foraminal** reconfirmed sample-limited (accuracy unchanged; v3 improves its severe-FN triage).
+  Baseline 5/5 severe recall unchanged. See `run_logs/{evidence_intelligence_v3,
+  axial_stack_scorer_v2_results,similar_case_retrieval_v2,real_evidence_case_viewer,
+  domain_shift_v1_3}.md`.
 - **v1.2 real case viewer + evidence intelligence v2 (LOCKED TEST).** A **case-viewer layer**
   (`reporting/case_viewer.py`) places each prediction next to its **held-out reference label**
   (reference only — never an input) and derives **correctness** (severe_correct / exact /
