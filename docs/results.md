@@ -342,7 +342,36 @@ scorer (`subarticular_auto_results.md`).
 
 Plus an abstention + model-disagreement review layer (per condition). A multi-condition
 non-diagnostic study report (`report_v3.md`) labels auto findings (3/5) vs
-oracle-only/blocked (2/5). **v1.0 not tagged — only 3/5 conditions have real auto inference.**
+oracle-only/blocked (2/5). (Superseded below — subarticular later unlocked → 5/5.)
+
+## v0.16–v1.0 — FIVE-FINDING AUTO: coverage 3/5 → 5/5 (REAL, locked test)
+
+> Full writeups: `run_logs/{subarticular_auto_results,safety_mode_v4,right_foraminal_refinement}.md`.
+> All locked test (splits_v1), auto = real inference (no GT at inference), cluster-bootstrap CIs.
+
+**Axial subarticular UNLOCKED → 5/5.** Pure geometry level-matching (27.5% within ±1 slice)
+is replaced by a **coordinate-supervised axial level scorer** (appearance ⊕ normalized-z,
+monotonic decoding; ±1 slice-hit 0.43) + a fixed supervision-derived in-plane offset. The
+oracle-trained grader **collapses** on these (imperfectly leveled) auto crops, but the
+**auto-trained robust grader holds** — recovering ~96–97% of the oracle ceiling:
+
+| finding | auto severe recall [95% CI] | vs oracle-trained control (paired) | n_severe |
+|---|---|---|---|
+| left subarticular stenosis | **0.746 [0.674, 0.815]** | +0.500 [0.403, 0.591] (McNemar 71/2, p=6e-19) | 138 |
+| right subarticular stenosis | **0.737 [0.667, 0.807]** | +0.372 [0.286, 0.462] (McNemar 55/4, p=2e-12) | 137 |
+
+**All five findings, locked-test auto severe recall [95% CI]:** canal 0.830 [0.725, 0.929];
+L-foraminal 0.788 [0.673, 0.892]; R-foraminal 0.660 [0.524, 0.788]; L-subarticular
+0.746 [0.674, 0.815]; R-subarticular 0.737 [0.667, 0.807]. Safety Mode v4 covers all five
+(recall@FAR≤10% 0.94 / 0.89 / 0.81 / 0.73 / 0.71) with a router (best grader per condition)
++ review layer.
+
+**Unifying scientific finding:** robust auto-training helps in proportion to the oracle→auto
+gap. Large gap (hard localization) → oracle-trained collapses, auto-training recovers
+(canal 0.43→0.83; subarticular 0.25/0.37→0.75/0.74). Small gap (clean localizer) →
+oracle-trained transfers (foraminal). Honest caveats: right-foraminal trails left (within CI
+overlap); subarticular auto relies on the grader *tolerating* an imperfect level scorer
+(reported, not hidden). No GT at auto inference.
 
 ## Runtime (RTX 5080)
 RSNA prep 48,692 crops ≈ 5 min; anatomy priors ≈ 3 min; E0/E1 train ≈ 30–45 min

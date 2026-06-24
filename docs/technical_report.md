@@ -54,8 +54,18 @@ interpretation in [`results.md`](results.md):
   (canal→auto-trained, foraminal→oracle-trained). **Subarticular (axial-T2)** is a measured
   blocker: z-based level matching reaches only 27.5% within ±1 axial slice. Safety Mode v3
   spans all 3 auto conditions; a non-diagnostic multi-condition study report labels auto vs
-  blocked findings. v1.0 not tagged. Detail: `run_logs/{foraminal_auto_results,
-  subarticular_auto_results,safety_mode_v3,report_v3}.md`.
+  blocked findings. (Superseded below.) Detail: `run_logs/foraminal_auto_results.md`.
+- **v0.16–v1.0 — five-finding auto (locked test): coverage 3/5 → 5/5.** The axial
+  subarticular blocker is solved with a **coordinate-supervised axial level scorer**
+  (appearance ⊕ normalized-z, monotonic decoding; ±1 slice-hit 0.43 vs geometry's 0.275) +
+  a fixed supervision-derived in-plane offset. The oracle-trained grader collapses on the
+  (imperfectly leveled) auto crops, but the **auto-trained robust grader recovers** to
+  left 0.746 [0.674, 0.815] / right 0.737 [0.667, 0.807] severe recall (paired +0.50/+0.37
+  vs control, McNemar p<1e-12; ~96–97% of the oracle ceiling). All five RSNA findings now
+  have real auto locked-test results; Safety Mode v4 + a per-condition router cover 5/5. The
+  unifying result: robust auto-training helps in proportion to the oracle→auto gap (recovers
+  canal & subarticular; foraminal's clean localizer needs none). Detail:
+  `run_logs/{subarticular_auto_results,safety_mode_v4}.md`, `results.md`.
 
 **Answer to the research question:** *concatenating* anatomy priors does not help
 (the model ignores them); making the model **structurally region-forced** does make

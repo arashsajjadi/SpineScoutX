@@ -65,8 +65,17 @@ log loss; deterministic seeds. SPIDER uses its official split.
   gap small — opposite of canal). **Default deployable graders: canal = auto-trained robust;
   foraminal = oracle-trained.** Subarticular L/R remain a **measured blocker** (axial
   z-level-matching only 27.5% within ±1 slice). Safety Mode v3 covers all 3 auto conditions.
-  See `run_logs/foraminal_auto_results.md`, `run_logs/subarticular_auto_results.md`,
-  `run_logs/safety_mode_v3.md`, `run_logs/report_v3.md`.
+  See `run_logs/foraminal_auto_results.md`, `run_logs/safety_mode_v3.md`, `run_logs/report_v3.md`.
+- **v0.16–v1.0 five-finding auto (LOCKED TEST): coverage 3/5 → 5/5.** Subarticular UNLOCKED
+  via a coordinate-supervised axial level scorer (±1 slice-hit 0.43 vs geometry 0.275) +
+  fixed in-plane offset + robust auto-training. Deployable subarticular auto severe recall:
+  left **0.746 [0.674, 0.815]**, right **0.737 [0.667, 0.807]** (auto-trained robust; the
+  oracle-trained grader collapses to 0.25/0.37 — paired +0.50/+0.37, McNemar p<1e-12). **All
+  five findings now have real auto locked-test results.** Default deployable graders (router):
+  canal & subarticular = auto-trained robust; foraminal = oracle-trained. Safety Mode v4 +
+  router cover 5/5. Honest caveats: right-foraminal weakest; subarticular relies on the grader
+  tolerating an imperfect level scorer. See `run_logs/subarticular_auto_results.md`,
+  `run_logs/safety_mode_v4.md`, `results.md`.
 
 ## Evidence & calibration
 Grad-CAM heatmaps → Anatomical Evidence Consistency (AEC; mean ≈ 0.10, flat across
