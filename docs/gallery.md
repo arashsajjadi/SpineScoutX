@@ -39,30 +39,50 @@ confidence, uncertainty flag, review reasons, view route, provenance:
 `review_required` with an explicit reason. Provenance is `auto` (no GT at inference).
 `ref` is the held-out research target (transparency only).
 
-## 5. Safety Mode
+## 5. Evidence-aware intelligence (v1.1)
+Each finding is re-graded under K plausible localizer perturbations (no GT) to score how
+**stable** the prediction is. Cards carry a left **stability stripe** (green=stable,
+amber=mildly, red=unstable), a `route_quality` flag, and stability-driven review reasons.
+
+| | card |
+|---|---|
+| stable, high-confidence (`route_quality` good) | ![](assets/showcase/case_stable_high_confidence_card.png) |
+| **unstable** finding flagged by evidence stability | ![](assets/showcase/case_unstable_flagged_card.png) |
+
+![evidence stability](assets/showcase/evidence_stability_dashboard.png)
+
+Honest result: instability predicts errors (AUROC 0.80) but is largely redundant with
+confidence; it **adds** severe-FN triage value on the 2 weakest right-side routes.
+Robust-trained graders are more stable than the oracle-trained foraminal grader.
+
+## 6. Safety Mode (evidence-aware v5)
 ![safety](assets/safety_mode_dashboard.png)
+![safety v5](assets/showcase/safety_mode_v5_dashboard.png)
 
 Per condition, effective severe recall vs the `review_required` burden — reaching high
-severe recall has an explicit cost, shown plainly.
+severe recall has an explicit cost, shown plainly. v5 adds an `evidence_unstable` review
+reason; calibration is a documented negative (already well-calibrated → raw probs kept).
 
-## 6. Failure & uncertainty gallery (shown, not hidden)
+## 7. Failure & uncertainty gallery (shown, not hidden)
 | case | what it shows | limitation |
 |---|---|---|
 | ![](assets/showcase/case_review_required_card.png) | many borderline findings → `review_required` | the review layer is deliberately conservative (over-flags for safety) |
 | ![](assets/showcase/case_foraminal_right_hard_card.png) | right-foraminal hard case | right-foraminal trails left (within CI overlap) |
 | ![](assets/showcase/case_mostly_normal_card.png) | mostly normal/mild, **0 reviews** | shows the flag is selective, not always-on |
+| ![](assets/showcase/right_foraminal_hard_cases.png) | right-foraminal diagnosis: 56% of misses are confidently-normal | a signal/sample limit, not threshold-fixable; worst at L4-L5 right |
+| ![](assets/showcase/domain_shift.png) | internal domain-shift stress test | weaker at L5-S1 (0.579) vs L4-L5 (0.868); no external validation |
 
 Coverage and oracle-vs-auto context:
 ![coverage](assets/coverage_dashboard.png)
 ![oracle vs auto](assets/oracle_vs_auto_gap.png)
 
-## 7. What NOT to use this for
+## 8. What NOT to use this for
 **Not** a diagnosis. **Not** clinical decision-making. **No** treatment recommendations.
 A research prototype on public non-commercial data; no external/prospective/reader-study
 validation. See [`trust_and_limitations.md`](trust_and_limitations.md).
 
 ## Where the numbers come from
 Full pack (JSON/MD, gitignored): `outputs/real/showcase_reports/`. Schema:
-[`run_logs/report_schema_v4.md`](run_logs/report_schema_v4.md). Audit:
+[`run_logs/report_schema_v5.md`](run_logs/report_schema_v5.md). Audit:
 [`run_logs/output_intelligence_audit.md`](run_logs/output_intelligence_audit.md). Results +
 CIs: [`results.md`](results.md).

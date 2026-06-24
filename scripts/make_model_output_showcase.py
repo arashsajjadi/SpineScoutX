@@ -26,6 +26,7 @@ import numpy as np
 from spinescoutx.constants import SEVERITIES
 from spinescoutx.data.crops import read_manifest
 from spinescoutx.data.locked_test import load_splits_v1
+from spinescoutx.evaluation import evidence_stability as es
 from spinescoutx.evaluation.gap_decomposition import collect_probs
 from spinescoutx.reporting import finding_graph_schema as fg
 from spinescoutx.training.optim import select_device
@@ -41,7 +42,8 @@ TMP = Path(
     "/tmp/claude-1000/-home-arash-PycharmProjects-SpineScoutX/"
     "ca508a4e-6a27-4c6a-a397-78976452a4e6/scratchpad/_show.parquet"
 )
-MODEL_VERSION = "v1.0-auto-robust-five-finding"
+MODEL_VERSION = "v1.1-evidence-aware-five-finding"
+ES_RECORDS = ROOT / "outputs/real/evidence_stability_records.parquet"
 # condition -> (deployable run, comparison run, auto cache)
 ROUTES = {
     "spinal_canal_stenosis": (
@@ -72,6 +74,7 @@ ROUTES = {
 }
 ROUTE_COLOR = {"sagittal_t2": "#2a9d8f", "sagittal_t1": "#457b9d", "axial_t2": "#9d4edd"}
 SEV_COLOR = {"normal_mild": "#e9f5e9", "moderate": "#fff3cd", "severe": "#f8d7da"}
+STAB_COLOR = {"stable": "#2e7d32", "mildly_unstable": "#f9a825", "unstable": "#c62828"}
 
 
 def _test_preds(cond, device):
@@ -123,6 +126,24 @@ def _axial_scores(studies, device):
     return out
 
 
+def _load_stability():
+    """{(condition, study, level) -> stability dict} from evidence_stability_records."""
+    if not ES_RECORDS.exists():
+        return {}
+    import pandas as pd
+
+    rec = pd.read_parquet(ES_RECORDS)
+    out = {}
+    for r in rec.itertuples():
+        out[(r.condition, str(r.study_id), r.level)] = {
+            "grade": r.grade,
+            "instability": float(r.instability),
+            "p_severe_range": float(r.p_severe_range),
+            "severity_flip_rate": float(r.severity_flip_rate),
+        }
+    return out
+
+
 def _build_graphs(device):
     by_study: dict[str, list] = {}
     for cond in ROUTES:
@@ -133,6 +154,7 @@ def _build_graphs(device):
         {s for s, recs in by_study.items() if any("subarticular" in r["condition"] for r in recs)}
     )
     axial = _axial_scores(sub_studies, device)
+    stability = _load_stability()
     graphs = {}
     for study, recs in by_study.items():
         findings = []
@@ -140,6 +162,8 @@ def _build_graphs(device):
             als = None
             if "subarticular" in r["condition"]:
                 als = axial.get(study, {}).get(r["level"])
+            stab = stability.get((r["condition"], study, r["level"]))
+            rq = es.route_quality(stab["grade"], als) if stab else None
             findings.append(
                 fg.build_finding(
                     r["condition"],
@@ -148,6 +172,8 @@ def _build_graphs(device):
                     reference_label=SEVERITIES[r["y"]],
                     model_disagreement=r["disagree"],
                     axial_level_score=als,
+                    evidence_stability=stab,
+                    route_quality_grade=rq,
                 )
             )
         g = fg.build_study_graph(
@@ -196,6 +222,24 @@ def _select(graphs):
     pick(lambda g: has(g, "right_subarticular", "severe"), "case_subarticular_right_card")
     pick(lambda g: g["study_summary"]["n_review_required"] >= 2, "case_review_required_card")
     pick(lambda g: g["study_summary"]["n_severe_estimates"] >= 2, "finding_graph_example")
+    # v5: an UNSTABLE finding flagged for review by evidence stability
+    pick(
+        lambda g: any(
+            (f.get("evidence_stability") or {}).get("grade") == "unstable"
+            and "evidence_unstable" in f["review_reasons"]
+            for f in g["findings"]
+        ),
+        "case_unstable_flagged_card",
+    )
+    # v5: a STABLE, high-confidence study (route_quality good) — the trustworthy end
+    pick(
+        lambda g: (
+            g["study_summary"].get("n_unstable", 0) == 0
+            and g["study_summary"]["n_high_confidence"] >= 4
+            and g["study_summary"]["max_p_severe"] >= 0.4
+        ),
+        "case_stable_high_confidence_card",
+    )
     # mostly-normal / low-review case: shows the review flag is selective, not always-on
     for study, g in sorted(
         graphs.items(),
@@ -232,7 +276,7 @@ def render_card(graph, path, title):
         0.91,
         f"model {graph['model_version']} · split {graph['split']} · "
         f"max P(severe) {s['max_p_severe']:.2f} · {s['n_review_required']} review · "
-        f"{s['n_severe_estimates']} severe est.",
+        f"{s['n_severe_estimates']} severe est. · {s.get('n_unstable', 0)} unstable",
         fontsize=8.5,
         transform=ax.transAxes,
         color="#333",
@@ -274,6 +318,20 @@ def render_card(graph, path, title):
                 zorder=0,
             )
         )
+        # evidence-stability colour stripe at the far left (green/amber/red)
+        stab_grade = (f.get("evidence_stability") or {}).get("grade")
+        if stab_grade:
+            ax.add_patch(
+                plt.Rectangle(
+                    (0.005, y - row_h * 0.45),
+                    0.004,
+                    row_h * 0.9,
+                    transform=ax.transAxes,
+                    fc=STAB_COLOR.get(stab_grade, "#999"),
+                    ec="none",
+                    zorder=1,
+                )
+            )
         cond_short = (
             f["condition"].replace("_stenosis", "").replace("_narrowing", "").replace("_", " ")
         )
@@ -333,6 +391,15 @@ def render_card(graph, path, title):
         ax.text(xs[4] + 0.165, y, f"{ps:.2f}", fontsize=7, transform=ax.transAxes, va="center")
     ax.text(
         0.01,
+        0.055,
+        "left stripe = evidence stability:  ■ stable   ■ mildly_unstable   ■ unstable "
+        "(re-run under localizer perturbation)",
+        fontsize=6.6,
+        transform=ax.transAxes,
+        color="#555",
+    )
+    ax.text(
+        0.01,
         0.02,
         graph["disclaimer"]
         + "  ·  auto inference (no GT) · severity = research finding, not a diagnosis",
@@ -350,7 +417,7 @@ def render_schema_visual(path):
     ax.text(
         0.5,
         0.96,
-        "SpineScoutX finding-graph schema (v4) — one finding",
+        "SpineScoutX finding-graph schema (v5) — one finding",
         ha="center",
         fontsize=13,
         fontweight="bold",
@@ -364,8 +431,13 @@ def render_schema_visual(path):
         ("probabilities", "P(normal_mild) + P(moderate) + P(severe) ≈ 1"),
         ("calibrated_confidence + uncertainty_flag", "top-class prob → high/moderate/review"),
         (
+            "evidence_stability (v5)",
+            "grade + instability under localizer perturbation (stable/mildly/unstable)",
+        ),
+        ("route_quality (v5)", "good · fair · weak — from stability + localizer confidence"),
+        (
             "review_required + review_reasons",
-            "low_confidence · high_entropy · model_disagreement · axial_level_uncertainty",
+            "low_confidence · model_disagreement · evidence_unstable · axial_level_uncertainty",
         ),
         ("localizer", "route · confidence · axial_level_scorer_score"),
         (
@@ -374,7 +446,7 @@ def render_schema_visual(path):
         ),
     ]
     for i, (k, v) in enumerate(fields):
-        y = 0.86 - i * 0.092
+        y = 0.88 - i * 0.078
         ax.add_patch(
             plt.Rectangle(
                 (0.02, y - 0.035), 0.30, 0.07, transform=ax.transAxes, fc="#e0f2f1", ec="#264653"
@@ -413,6 +485,8 @@ def main() -> int:
         "case_review_required_card": "Review-required case",
         "finding_graph_example": "Multi-finding study",
         "case_mostly_normal_card": "Mostly normal/mild",
+        "case_unstable_flagged_card": "Unstable finding (flagged by evidence stability)",
+        "case_stable_high_confidence_card": "Stable, high-confidence (route_quality good)",
     }
     index = []
     for name, (_study, g) in chosen.items():
@@ -449,7 +523,12 @@ def _doc(index):
             f"| `{name}` | {cid} | {s['max_p_severe']:.2f} | "
             f"{s['n_severe_estimates']} | {s['n_review_required']} |"
         )
-    lines += ["", "Cards: `docs/assets/showcase/*.png`. Schema: `report_schema_v4.md`."]
+    lines += [
+        "",
+        "Cards carry v5 evidence-aware fields: a left **stability stripe** (green/amber/red),",
+        "`route_quality`, and stability-driven review reasons (`evidence_unstable` etc.).",
+        "Cards: `docs/assets/showcase/*.png`. Schema: `report_schema_v5.md`.",
+    ]
     DOC.write_text("\n".join(lines) + "\n")
 
 

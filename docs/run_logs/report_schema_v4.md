@@ -1,5 +1,8 @@
 # Study-level finding-graph schema (v4)
 
+> **Superseded by [`report_schema_v5.md`](report_schema_v5.md)** (v5 adds evidence-aware
+> `evidence_stability` + `route_quality` fields and stability review reasons). Kept for history.
+>
 > Research-only · not diagnostic. The formal, auditable structure of a SpineScoutX model
 > output. Built/validated/rendered by `src/spinescoutx/reporting/finding_graph_schema.py`.
 

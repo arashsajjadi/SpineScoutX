@@ -66,6 +66,23 @@ log loss; deterministic seeds. SPIDER uses its official split.
   foraminal = oracle-trained.** Subarticular L/R remain a **measured blocker** (axial
   z-level-matching only 27.5% within ±1 slice). Safety Mode v3 covers all 3 auto conditions.
   See `run_logs/foraminal_auto_results.md`, `run_logs/safety_mode_v3.md`, `run_logs/report_v3.md`.
+- **v1.1 evidence-aware intelligence + generalization (LOCKED TEST).** Each finding now
+  carries an **evidence-stability** score (re-grade under K plausible localizer perturbations,
+  auto coords only — no GT; baseline reproduces deployed preds exactly). Honest evaluation:
+  instability predicts errors (pooled AUROC **0.797**) and severe FNs (**0.713**) above
+  chance but is **largely redundant with confidence** (combined 0.841 vs 0.845); it **adds**
+  severe-FN triage value on the 2 weakest right-side routes (right-foraminal capture
+  0.72→0.89 @30%, right-subarticular 0.42→0.56 @20%). Robust-trained graders are more stable
+  (canal 75%) than the oracle-trained foraminal grader (44%). **Safety Mode v5** adds an
+  `evidence_unstable` review reason; **calibration is a documented negative** — graders are
+  already well-calibrated (test ECE 0.03–0.08), dev-fit temperature does not transfer, so the
+  deployed path keeps raw probabilities. **Internal domain-shift:** severe recall is robust to
+  in-plane resolution/matrix size, mildly sensitive to slice thickness, and weaker at L5-S1
+  (0.579) than L4-L5 (0.868); **external/prospective validation not feasible** with available
+  legal data (scanner metadata stripped) and **not performed**. **Right-foraminal precisely
+  diagnosed:** 56% of misses are confidently-normal (signal/sample limit, not threshold-
+  fixable). See `run_logs/evidence_stability_v1.md`, `safety_mode_v5.md`,
+  `external_validation_audit.md`, `right_foraminal_v1_1.md`.
 - **v0.16–v1.0 five-finding auto (LOCKED TEST): coverage 3/5 → 5/5.** Subarticular UNLOCKED
   via a coordinate-supervised axial level scorer (±1 slice-hit 0.43 vs geometry 0.275) +
   fixed in-plane offset + robust auto-training. Deployable subarticular auto severe recall:
@@ -93,13 +110,14 @@ Optional LLM (Ollama) report wording is fail-closed and may only rephrase the
 deterministic finding graph.
 
 ## Model output & trust
-- **Output = a study-level research finding graph** (schema `finding_graph_v4`): per
+- **Output = a study-level research finding graph** (schema `finding_graph_v5`): per
   (condition, level, side) a severity estimate, P(normal_mild/moderate/severe), calibrated
-  confidence, uncertainty flag, `review_required` + reasons, view route, and provenance
-  (auto/oracle/blocked). Deterministic, schema-validated, anonymized (`case_*`). See
-  `run_logs/report_schema_v4.md`; example outputs in the [gallery](gallery.md) and
-  `outputs/real/showcase_reports/` (gitignored). Output intelligence/safety is CI-audited
-  (`run_logs/output_intelligence_audit.md`).
+  confidence, uncertainty flag, **`evidence_stability`** (grade + instability under localizer
+  perturbation), **`route_quality`** (good/fair/weak), `review_required` + reasons (incl.
+  `evidence_unstable`), view route, and provenance (auto/oracle/blocked). Deterministic,
+  schema-validated, anonymized (`case_*`). See `run_logs/report_schema_v5.md`; example
+  outputs in the [gallery](gallery.md) and `outputs/real/showcase_reports/` (gitignored).
+  Output intelligence/safety is CI-audited (`run_logs/output_intelligence_audit.md`).
 - **Intended use:** research into anatomy-grounded auto-inference, severe-safety operating
   points, and uncertainty/review on lumbar MRI. **Out of scope:** any diagnosis, triage, or
   medical decision; clinical/prospective use; non-RSNA distributions without revalidation.

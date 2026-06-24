@@ -73,16 +73,15 @@ def test_sample_offsets_deterministic_and_bounded():
 
 
 def test_review_reasons_route_aware():
+    # only the strong `unstable` grade raises review reasons
     assert es.stability_review_reasons("stable", "spinal_canal_stenosis") == ()
+    assert es.stability_review_reasons("mildly_unstable", "spinal_canal_stenosis") == ()
     canal = es.stability_review_reasons("unstable", "spinal_canal_stenosis")
     assert "evidence_unstable" in canal and "route_unstable" in canal
     sub = es.stability_review_reasons("unstable", "left_subarticular_stenosis")
     assert "axial_candidate_disagreement" in sub
     for_ = es.stability_review_reasons("unstable", "right_neural_foraminal_narrowing")
     assert "foraminal_slice_disagreement" in for_
-    assert es.stability_review_reasons("mildly_unstable", "spinal_canal_stenosis") == (
-        "evidence_unstable",
-    )
 
 
 def test_route_quality_levels():

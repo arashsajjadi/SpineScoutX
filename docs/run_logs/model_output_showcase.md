@@ -4,13 +4,17 @@
 
 | card | case_id | max P(severe) | severe est. | review |
 |---|---|---|---|---|
-| `case_canal_severe_card` | case_3834439a10 | 0.90 | 18 | 20 |
-| `case_foraminal_left_card` | case_bd76b3cf05 | 0.90 | 14 | 13 |
-| `case_foraminal_right_hard_card` | case_0cec5cde30 | 0.90 | 1 | 8 |
-| `case_subarticular_left_card` | case_3be7b32cb9 | 0.89 | 5 | 18 |
-| `case_subarticular_right_card` | case_814f4e0881 | 0.89 | 7 | 14 |
-| `case_review_required_card` | case_f8490523c2 | 0.89 | 10 | 12 |
-| `finding_graph_example` | case_8d0ff7faca | 0.89 | 10 | 12 |
+| `case_canal_severe_card` | case_3834439a10 | 0.90 | 18 | 23 |
+| `case_foraminal_left_card` | case_bd76b3cf05 | 0.90 | 14 | 14 |
+| `case_foraminal_right_hard_card` | case_0cec5cde30 | 0.90 | 1 | 10 |
+| `case_subarticular_left_card` | case_3be7b32cb9 | 0.89 | 5 | 20 |
+| `case_subarticular_right_card` | case_814f4e0881 | 0.89 | 7 | 17 |
+| `case_review_required_card` | case_f8490523c2 | 0.89 | 10 | 14 |
+| `finding_graph_example` | case_8d0ff7faca | 0.89 | 10 | 14 |
+| `case_unstable_flagged_card` | case_898f3e681c | 0.89 | 14 | 16 |
+| `case_stable_high_confidence_card` | case_a13be92706 | 0.82 | 3 | 8 |
 | `case_mostly_normal_card` | case_63e83fa0b2 | 0.02 | 0 | 0 |
 
-Cards: `docs/assets/showcase/*.png`. Schema: `report_schema_v4.md`.
+Cards carry v5 evidence-aware fields: a left **stability stripe** (green/amber/red),
+`route_quality`, and stability-driven review reasons (`evidence_unstable` etc.).
+Cards: `docs/assets/showcase/*.png`. Schema: `report_schema_v5.md`.

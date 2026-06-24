@@ -17,9 +17,24 @@
 - **Auditable outputs.** Finding graphs are deterministic, schema-validated, and proven
   model-derived (not templated) by CI tests; no diagnosis/treatment wording; anonymized.
 
+## Evidence-aware reliability (v1.1) — honest summary
+- **Evidence stability** (re-grading under plausible localizer perturbation) is a *real*
+  signal: it predicts errors (AUROC 0.80) and severe FNs (0.71) above chance — **but it is
+  largely redundant with confidence**, so we do **not** claim it beats confidence in general.
+  It **does** add severe-FN triage value on the two weakest **right-side** routes, and it is
+  surfaced as `evidence_stability` / `route_quality` / the `evidence_unstable` review reason.
+- **Calibration is a documented negative.** The graders are already well-calibrated (test ECE
+  0.03–0.08); a dev-fit temperature does not transfer, so **no temperature is applied** in the
+  deployed path. We report this rather than ship a calibration that doesn't help.
+- **Internal domain-shift only.** Severe recall is robust to in-plane resolution and matrix
+  size, mildly sensitive to slice thickness, and **weaker at L5-S1 (0.579) than L4-L5
+  (0.868)**. This is *internal* robustness, not external generalization.
+
 ## What is NOT reliable / NOT done
 - **No external validation.** Single dataset (RSNA LumbarDISC); **no** other-institution,
-  prospective, scanner-diversity, or reader-study validation.
+  prospective, scanner-diversity, or reader-study validation. External labeled validation is
+  **not feasible** with available legal data (RSNA strips scanner/vendor/field-strength;
+  SPIDER lacks the five graded labels) — so it was **not performed**.
 - **No clinical validation, no regulatory clearance.** Not a medical device.
 - **Right-foraminal is weaker** (auto severe recall 0.660 [0.524, 0.788]) and trails left
   (0.788); the gap is within CI overlap (n_severe ≈ 53) and a right-specialist did not

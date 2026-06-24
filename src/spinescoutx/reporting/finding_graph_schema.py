@@ -155,20 +155,18 @@ def build_finding(
     ):
         reasons.append("axial_level_uncertainty")
     # v5: evidence-stability-driven review reasons (route-aware), inlined to keep the
-    # schema layer free of an evaluation-module import.
+    # schema layer free of an evaluation-module import. Only the strong `unstable` grade
+    # raises review (mildly_unstable informs route_quality but does not flood review).
     stab_grade = (evidence_stability or {}).get("grade")
-    if stab_grade and stab_grade != "stable":
-        if "evidence_unstable" not in reasons:
-            reasons.append("evidence_unstable")
-        if stab_grade == "unstable":
-            if route == "axial_t2":
-                tail = "axial_candidate_disagreement"
-            elif route == "sagittal_t1":
-                tail = "foraminal_slice_disagreement"
-            else:
-                tail = "route_unstable"
-            if tail not in reasons:
-                reasons.append(tail)
+    if stab_grade == "unstable":
+        reasons.append("evidence_unstable")
+        if route == "axial_t2":
+            tail = "axial_candidate_disagreement"
+        elif route == "sagittal_t1":
+            tail = "foraminal_slice_disagreement"
+        else:
+            tail = "route_unstable"
+        reasons.append(tail)
     for r in extra_review_reasons:
         if r not in reasons:
             reasons.append(r)

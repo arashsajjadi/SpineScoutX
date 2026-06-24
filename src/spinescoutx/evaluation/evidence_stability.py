@@ -170,18 +170,21 @@ def instability_score(stats: dict) -> float:
 # review reasons (must be a subset of ALLOWED_REVIEW_REASONS in the schema once
 # registered there)
 def stability_review_reasons(grade: str, condition: str) -> tuple[str, ...]:
-    """Route-aware review reasons triggered by instability."""
-    if grade == "stable":
+    """Route-aware review reasons triggered by instability.
+
+    Only the strong ``unstable`` grade raises review reasons; ``mildly_unstable`` informs
+    ``route_quality`` (fair) but does not flood the review queue. This matches the schema's
+    inline policy and the Safety-v5 finding that the actionable triage signal is ``unstable``.
+    """
+    if grade != "unstable":
         return ()
-    reasons = ["evidence_unstable"]
-    if grade == "unstable":
-        if "subarticular" in condition:
-            reasons.append("axial_candidate_disagreement")
-        elif "foraminal" in condition:
-            reasons.append("foraminal_slice_disagreement")
-        else:
-            reasons.append("route_unstable")
-    return tuple(reasons)
+    if "subarticular" in condition:
+        tail = "axial_candidate_disagreement"
+    elif "foraminal" in condition:
+        tail = "foraminal_slice_disagreement"
+    else:
+        tail = "route_unstable"
+    return ("evidence_unstable", tail)
 
 
 def route_quality(grade: str, localizer_confidence: float | None) -> str:
