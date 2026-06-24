@@ -1,114 +1,106 @@
 # SpineScoutX
 
-**A research-only lumbar-MRI pipeline that reads a study with no ground-truth coordinates
-and outputs a non-diagnostic, severe-safety-aware *research finding graph* — per level, per
-condition, with calibrated confidence and review flags — validated on a patient-level
-locked test.**
+**A research-only lumbar-MRI pipeline that reads a study with no ground-truth coordinates and
+outputs a non-diagnostic, severe-safety-aware *research finding graph* — then shows that output
+next to the held-out reference so you can see where it is right, uncertain, or wrong.**
 
 > ⚠️ **Research-only · not diagnostic · not clinically validated · not for medical
 > decision-making · no treatment recommendations.** Severity values are *research findings /
-> severity estimates*, never a diagnosis. Public non-commercial data (RSNA LumbarDISC;
-> SPIDER CC BY 4.0); no data redistributed.
+> severity estimates*, never a diagnosis. Public non-commercial data (RSNA LumbarDISC; SPIDER
+> CC BY 4.0); no data redistributed. **5/5 findings have a real auto-inference route.**
 
-## What does it output?
-A study-level **finding graph** — this is the actual model output (structured, no DICOM
-pixels), one row per (condition, level, side): severity estimate, P(severe), calibrated
-confidence, uncertainty flag, `review_required` + reason, view route, and provenance:
+## See what it actually does — one real locked-test case
+![real case viewer](docs/assets/readme/hero_case_viewer.png)
 
-![example finding graph](docs/assets/showcase/finding_graph_example.png)
+Left = the **model prediction** (severity estimate + P(severe)); right = the **held-out
+reference label** (shown for transparency only — *never* a model input); far right = the
+**code-derived correctness** (✓/✗). Provenance is `auto` — **no ground-truth coordinates at
+inference**. Full sectioned cards (evidence route, safety, failure note) are in the
+**[case gallery](docs/gallery.md)**; here is how to read one:
 
-## Example case (real locked-test output, anonymized)
-![canal severe case](docs/assets/showcase/case_canal_severe_card.png)
+![prediction vs reference](docs/assets/readme/prediction_vs_reference_card.png)
 
-Confident findings are `high_confidence`; borderline ones are flagged `review_required`
-with an explicit reason (low confidence, model disagreement, near-severe, axial-level
-uncertainty). Provenance is `auto` — **no ground-truth coordinates at inference**. More
-cases (incl. failures) in the **[gallery](docs/gallery.md)**.
+## See real examples (correct, uncertain, and wrong)
+| | a real case card |
+|---|---|
+| **Correct severe** (canal) | [`case_canal_correct_severe`](docs/assets/cases/case_canal_correct_severe.png) |
+| **Hard — right-foraminal severe miss** | [`case_right_foraminal_hard`](docs/assets/cases/case_right_foraminal_hard.png) |
+| **Unstable → flagged for review** | [`case_axial_unstable`](docs/assets/cases/case_axial_unstable.png) |
+| **Review catches a severe FN** | [`case_review_required`](docs/assets/cases/case_review_required.png) |
+| **Mostly normal — 0 reviews** | [`case_mostly_normal`](docs/assets/cases/case_mostly_normal.png) |
 
-## Current capability — 5/5 findings have real auto inference
-![coverage](docs/assets/coverage_dashboard.png)
+Each card is wide and readable, with an explicit **prediction-vs-held-out-reference** column.
 
-| finding | view route | locked-test **auto** severe recall [95% CI] |
+## Coverage & performance (locked-test **auto** = real inference)
+| finding | view route | severe recall [95% CI] |
 |---|---|---|
-| spinal canal stenosis | sagittal-T2 | **0.830 [0.725, 0.929]** |
-| left neural foraminal narrowing | sagittal-T1 | **0.788 [0.673, 0.892]** |
-| right neural foraminal narrowing | sagittal-T1 | **0.660 [0.524, 0.788]** |
-| left subarticular stenosis | axial-T2 | **0.746 [0.674, 0.815]** |
-| right subarticular stenosis | axial-T2 | **0.737 [0.667, 0.807]** |
+| spinal canal stenosis | sagittal-T2 | **0.830** [0.725, 0.929] |
+| left neural foraminal narrowing | sagittal-T1 | **0.788** [0.673, 0.892] |
+| right neural foraminal narrowing | sagittal-T1 | **0.660** [0.524, 0.788] |
+| left subarticular stenosis | axial-T2 | **0.746** [0.674, 0.815] |
+| right subarticular stenosis | axial-T2 | **0.737** [0.667, 0.807] |
 
 Every number is on a **never-tuned patient-level locked test**, auto = real inference, with
-cluster-bootstrap CIs. *Core finding:* robust auto-training helps in proportion to the
-oracle→auto gap (it recovers canal & subarticular where localization is hard; foraminal's
-clean localizer needs none — grader chosen per condition).
+cluster-bootstrap CIs. Full results: [`docs/results.md`](docs/results.md).
 
-## Evidence-aware intelligence (v1.1)
-![evidence stability](docs/assets/showcase/evidence_stability_dashboard.png)
+## How it works
+![input to output](docs/assets/readme/pipeline_input_to_output.png)
 
-Beyond a single prediction, each finding now carries an **evidence-stability** signal: the
-same grader is re-run on K plausible localizer perturbations (in-plane jitter + slice shift,
-from auto coordinates only — **no ground truth**) and we measure how much P(severe) moves.
-Honest results (locked-test auto, baseline reproduces the deployed predictions exactly):
+*Core finding:* robust auto-training helps in proportion to the oracle→auto localization gap
+(it recovers canal & subarticular; foraminal's clean localizer needs none — grader chosen per
+condition).
 
-- **Instability predicts errors** (pooled AUROC 0.80) and severe false-negatives (0.71) —
-  above chance — but is **largely redundant with confidence** (we do not overclaim).
-- It **adds severe-FN triage value on exactly the 2 weakest right-side routes**
-  (right-foraminal capture 0.72→0.89 @30% review; right-subarticular 0.42→0.56 @20%).
-- **Robust-trained graders are more stable** (canal 75% stable) than the oracle-trained
-  foraminal grader (44%) — stability validates the robust-training thesis.
+## Evidence-aware intelligence (v1.1–v1.2)
+![evidence stability](docs/assets/readme/evidence_stability_explainer.png)
 
-It feeds the finding graph's `evidence_stability` + `route_quality` fields and Safety Mode
-v5's review reasons. See [`evidence_stability_v1.md`](docs/run_logs/evidence_stability_v1.md).
+Each finding carries an **evidence-stability** signal (re-grade under plausible localizer
+perturbation, no GT) and an **instability *type*** (crop / slice / axial-candidate / route
+sensitive) that names the *cause*. Honest result: instability predicts errors (pooled AUROC
+0.80) but is largely redundant with confidence — it **adds** severe-FN triage value on the
+weakest right-side routes, and every unstable type carries several× the severe-FN rate of
+stable findings. See [`evidence_stability_v1.md`](docs/run_logs/evidence_stability_v1.md),
+[`evidence_intelligence_v2.md`](docs/run_logs/evidence_intelligence_v2.md).
 
-## Safety Mode (severe-first, evidence-aware v5)
-![safety](docs/assets/safety_mode_dashboard.png)
+## Safety mode (severe-first, selective review)
+![safety mode](docs/assets/readme/safety_mode_explainer.png)
 
-Per condition: severe-recall vs false-alarm frontier + a `review_required` layer
-(low confidence · model disagreement · **evidence-unstable** · axial-level uncertainty).
-Reaching 90% severe recall has an explicit false-alarm / review cost — reported, never
-hidden. **Calibration is a documented negative:** the graders are already well-calibrated
-(test ECE 0.03–0.08), so dev-fit temperature does not transfer — the deployed path keeps raw
-probabilities. See [`safety_mode_v5.md`](docs/run_logs/safety_mode_v5.md).
+Reaching 90% severe recall has an explicit false-alarm / review cost — reported, never hidden.
+Calibration is a documented negative (graders already well-calibrated → raw probabilities kept).
+See [`safety_mode_v5.md`](docs/run_logs/safety_mode_v5.md).
 
 ## Where it fails (shown, not hidden)
-Right-foraminal trails left (within CI overlap) — **precisely characterized:** 56% of its
-severe misses are *confidently normal* (a signal/sample limit, not threshold-fixable; at
-at L4-L5 right). Severe recall is robust across resolution/matrix size but **weaker at L5-S1
-(0.579) vs L4-L5 (0.868)** ([domain-shift audit](docs/run_logs/external_validation_audit.md));
-the axial level scorer is imperfect (±1 slice-hit 0.43 — the grader tolerates it); severe
-counts are modest (wide CIs); **no external/prospective validation.** See the
-**[failure gallery](docs/gallery.md#7-failure--uncertainty-gallery-shown-not-hidden)** and
+![failures](docs/assets/readme/failure_gallery_preview.png)
+
+Right-foraminal is the weakest route (precisely characterized: 56% of its severe misses are
+*confidently normal* — a signal/sample limit). Severe recall is weaker at L5-S1 (0.579) than
+L4-L5 (0.868) ([domain-shift audit](docs/run_logs/external_validation_audit.md)); the axial
+level scorer is imperfect (±1 slice-hit 0.43); **no external/prospective validation.** Details:
 **[trust & limitations](docs/trust_and_limitations.md)**.
 
 ## Quickstart
 ```bash
 pip install -e .
-spinescoutx doctor --data                      # checks RSNA/SPIDER + deps
-# data required (docs/data_setup.md). Regenerate the model-output showcase:
-python scripts/make_model_output_showcase.py   # finding-graph cards + JSON/MD pack (v5)
-python scripts/run_evidence_stability.py       # evidence-stability scoring + eval
-python scripts/run_safety_mode_v5.py           # evidence-aware severe-first dashboard
-python scripts/run_domain_shift_audit.py       # internal domain-shift stress test
-# reproduce the locked-test routes:
-python scripts/build_splits_v1.py
-python scripts/run_canal_locked_test.py && python scripts/run_foraminal_locked_test.py
-python scripts/run_axial_level_scorer.py && python scripts/run_subarticular_locked_test.py
+spinescoutx doctor --data                          # checks RSNA/SPIDER + deps
+# data required (docs/data_setup.md). Regenerate the visible outputs:
+python scripts/make_real_case_viewer_pack.py       # wide prediction-vs-reference case cards
+python scripts/make_readme_assets_v12.py           # README explainer assets
+python scripts/run_evidence_intel_v2.py            # instability typing
+python scripts/run_safety_mode_v5.py               # evidence-aware severe-first dashboard
 ```
 
 ## Trust & limitations (read this)
 **An academic research prototype, not an FDA/CE-cleared medical product.** No external,
 prospective, or reader-study validation. Not diagnostic, not clinical. Details:
-[`docs/trust_and_limitations.md`](docs/trust_and_limitations.md),
-[`docs/safety.md`](docs/safety.md).
+[`docs/trust_and_limitations.md`](docs/trust_and_limitations.md), [`docs/safety.md`](docs/safety.md).
 
 ## Full docs
 - 🖼 [Gallery](docs/gallery.md) · 📊 [Results + CIs](docs/results.md) ·
   🧪 [Technical report](docs/technical_report.md)
 - 🪪 [Model card](docs/model_card.md) · [Dataset card](docs/dataset_card.md) ·
   🔒 [Safety policy](docs/safety.md) · 🔁 [Reproducibility](docs/reproducibility.md)
-- 🧩 [Output schema v5](docs/run_logs/report_schema_v5.md) ·
-  [Output audit](docs/run_logs/output_intelligence_audit.md) ·
-  🧭 [Evidence stability](docs/run_logs/evidence_stability_v1.md) ·
-  [Domain-shift audit](docs/run_logs/external_validation_audit.md)
+- 🧩 [Finding-graph schema v5](docs/run_logs/report_schema_v5.md) ·
+  [Case viewer](docs/run_logs/real_case_viewer.md) ·
+  [Output audit](docs/run_logs/output_intelligence_audit.md)
 
 ## License
 Code: MIT ([`LICENSE`](LICENSE)). **Datasets are NOT covered by MIT** and are not included
