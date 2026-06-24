@@ -1,44 +1,68 @@
-# SpineScoutX gallery
+# SpineScoutX gallery — model outputs, routing, and failures
 
-> Research-only · not diagnostic · not clinically validated. All figures are metric plots
-> or schematic diagrams generated from locked-test result JSONs — **no DICOM pixels, no
-> patient identifiers**. Regenerate with `python scripts/make_showcase_assets.py`.
+> Research-only · not diagnostic · not clinically validated · not for medical
+> decision-making. Every card renders a **structured model output** (a finding graph) or a
+> metric plot — **no DICOM pixels, no patient identifiers** (cases are hashed `case_*`).
+> Regenerate: `python scripts/make_model_output_showcase.py` and
+> `python scripts/make_showcase_assets.py`.
 
-## Pipeline
+## 1. What the model receives → what it does
 ![pipeline](assets/hero_pipeline.png)
 
-MRI study → view router + per-condition localizers → auto crop (no GT coordinates) →
-robust per-condition grader → Safety Mode review layer → non-diagnostic finding graph.
+An MRI study → a **view router + per-condition localizers** → auto crops placed **without
+ground-truth coordinates** → robust per-condition graders → Safety Mode review layer →
+a non-diagnostic finding graph.
 
-## Auto coverage (5/5 findings, locked test)
-![coverage](assets/coverage_dashboard.png)
+## 2. How routing works
+| finding | view route | localization |
+|---|---|---|
+| spinal canal stenosis | sagittal-T2 | disc localizer (median 2.5 px) |
+| L/R neural foraminal narrowing | sagittal-T1 | side-aware best-slice localizer (median 2.2 px) |
+| L/R subarticular stenosis | axial-T2 | coordinate-supervised axial level scorer + fixed offset |
 
-Bars are auto (real-inference) severe recall on the patient-level locked test, with 95%
-CIs. All five RSNA findings have a real auto route.
+## 3. The output: a study-level finding graph
+This is what comes out — per-level/per-condition severity estimate, P(severe), calibrated
+confidence, uncertainty flag, review reasons, view route, provenance:
 
-## Oracle upper bound vs auto inference
-![oracle vs auto](assets/oracle_vs_auto_gap.png)
+![finding graph](assets/showcase/finding_graph_example.png)
+![schema](assets/showcase/report_schema_visual.png)
 
-The oracle (GT-coordinate) bars are an upper bound; the auto bars are deployable
-inference. The canal gap is large (robust auto-training recovers it); the foraminal gap is
-small (clean localizer → oracle-trained transfers).
+## 4. Example cases (real locked-test model outputs)
+| | card |
+|---|---|
+| canal — severe | ![](assets/showcase/case_canal_severe_card.png) |
+| left foraminal | ![](assets/showcase/case_foraminal_left_card.png) |
+| left subarticular | ![](assets/showcase/case_subarticular_left_card.png) |
+| right subarticular | ![](assets/showcase/case_subarticular_right_card.png) |
 
-## Safety Mode — severe recall vs review burden
+*Interpretation:* confident findings are flagged `high_confidence`; borderline ones get
+`review_required` with an explicit reason. Provenance is `auto` (no GT at inference).
+`ref` is the held-out research target (transparency only).
+
+## 5. Safety Mode
 ![safety](assets/safety_mode_dashboard.png)
 
-For each auto condition: effective severe recall as a function of how many low-confidence /
-disagreement cases are flagged `review_required`. Reaching high severe recall has an
-explicit review-burden cost, shown plainly.
+Per condition, effective severe recall vs the `review_required` burden — reaching high
+severe recall has an explicit cost, shown plainly.
 
-## Example finding graphs
-Non-diagnostic per-study research finding graphs (per-level severity estimate, P(severe),
-confidence, uncertainty flag, review reasons, provenance) are written to
-`outputs/real/reports_v3/*.md` / `*.json` (gitignored, regenerable via
-`python scripts/run_report_v3.py`). Schema: [`run_logs/report_v3.md`](run_logs/report_v3.md).
+## 6. Failure & uncertainty gallery (shown, not hidden)
+| case | what it shows | limitation |
+|---|---|---|
+| ![](assets/showcase/case_review_required_card.png) | many borderline findings → `review_required` | the review layer is deliberately conservative (over-flags for safety) |
+| ![](assets/showcase/case_foraminal_right_hard_card.png) | right-foraminal hard case | right-foraminal trails left (within CI overlap) |
+| ![](assets/showcase/case_mostly_normal_card.png) | mostly normal/mild, **0 reviews** | shows the flag is selective, not always-on |
+
+Coverage and oracle-vs-auto context:
+![coverage](assets/coverage_dashboard.png)
+![oracle vs auto](assets/oracle_vs_auto_gap.png)
+
+## 7. What NOT to use this for
+**Not** a diagnosis. **Not** clinical decision-making. **No** treatment recommendations.
+A research prototype on public non-commercial data; no external/prospective/reader-study
+validation. See [`trust_and_limitations.md`](trust_and_limitations.md).
 
 ## Where the numbers come from
-- Canal locked-test confirmation: [`run_logs/canal_locked_test.md`](run_logs/canal_locked_test.md)
-- Foraminal auto route: [`run_logs/foraminal_auto_results.md`](run_logs/foraminal_auto_results.md)
-- Axial subarticular auto route: [`run_logs/subarticular_auto_results.md`](run_logs/subarticular_auto_results.md)
-- Safety Mode v4 dashboard: [`run_logs/safety_mode_v4.md`](run_logs/safety_mode_v4.md)
-- Full results + CIs: [`results.md`](results.md)
+Full pack (JSON/MD, gitignored): `outputs/real/showcase_reports/`. Schema:
+[`run_logs/report_schema_v4.md`](run_logs/report_schema_v4.md). Audit:
+[`run_logs/output_intelligence_audit.md`](run_logs/output_intelligence_audit.md). Results +
+CIs: [`results.md`](results.md).

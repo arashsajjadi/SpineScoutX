@@ -91,3 +91,19 @@ external or clinical validation; results are from one site's public data under
 non-commercial terms. No PHI; no identifiers in figures; no data/weights committed.
 Optional LLM (Ollama) report wording is fail-closed and may only rephrase the
 deterministic finding graph.
+
+## Model output & trust
+- **Output = a study-level research finding graph** (schema `finding_graph_v4`): per
+  (condition, level, side) a severity estimate, P(normal_mild/moderate/severe), calibrated
+  confidence, uncertainty flag, `review_required` + reasons, view route, and provenance
+  (auto/oracle/blocked). Deterministic, schema-validated, anonymized (`case_*`). See
+  `run_logs/report_schema_v4.md`; example outputs in the [gallery](gallery.md) and
+  `outputs/real/showcase_reports/` (gitignored). Output intelligence/safety is CI-audited
+  (`run_logs/output_intelligence_audit.md`).
+- **Intended use:** research into anatomy-grounded auto-inference, severe-safety operating
+  points, and uncertainty/review on lumbar MRI. **Out of scope:** any diagnosis, triage, or
+  medical decision; clinical/prospective use; non-RSNA distributions without revalidation.
+- **Trust:** academic research prototype, **not** FDA/CE-cleared. Strengths and the (many)
+  limitations — no external/prospective/reader-study validation, weaker right-foraminal,
+  imperfect axial level scorer, modest severe counts — are stated in
+  [`trust_and_limitations.md`](trust_and_limitations.md).
