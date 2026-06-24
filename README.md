@@ -43,6 +43,13 @@ wrong) in the **[gallery](docs/gallery.md)**.
 Every number is on a **never-tuned patient-level locked test**, auto = real inference, with
 cluster-bootstrap CIs. Full results: [`docs/results.md`](docs/results.md).
 
+> **v1.4 (raw-accuracy audit — honest negative):** a ruthless accuracy audit found **no bug
+> depressing severe recall** (baselines reproduce exactly; one latent bug fixed with zero metric
+> delta), and a direct test showed v1.3's localization gain does **not** transfer to grading.
+> **Raw severe recall is unchanged** — the ceiling is grader-capacity/training-data limited, not
+> a bug. No accuracy-upgrade tag. See
+> [`v1_4_raw_accuracy_conclusion.md`](docs/run_logs/v1_4_raw_accuracy_conclusion.md).
+
 ## How it works
 ![input to output](docs/assets/readme/pipeline_input_to_output.png)
 

@@ -66,6 +66,18 @@ log loss; deterministic seeds. SPIDER uses its official split.
   foraminal = oracle-trained.** Subarticular L/R remain a **measured blocker** (axial
   z-level-matching only 27.5% within ±1 slice). Safety Mode v3 covers all 3 auto conditions.
   See `run_logs/foraminal_auto_results.md`, `run_logs/safety_mode_v3.md`, `run_logs/report_v3.md`.
+- **v1.4 raw-accuracy war room — RIGOROUS NEGATIVE (no raw-recall change).** A dedicated
+  accuracy audit (code + on-real-data invariants + logic tests) found **no severe-recall-
+  corrupting bug**; baselines reproduce exactly; one latent bug (B1: `collect_probs` silent
+  key-collision) was fixed with **zero metric delta**. A paired test showed the v1.3 localization
+  gain does **not** transfer to subarticular grading (dev +0.004 / test −0.040 — the robust
+  grader tolerates leveling noise). Right-foraminal was not retrained (non-decisive 5×; sample-
+  limited, n_severe≈53, 56% of misses confidently-normal). **Conclusion:** raw severe recall is
+  grader-capacity/training-data limited, not bug/decode limited; the next lever is more severe-
+  class data / a matched-retrain or MIL grader. **5/5 severe recall UNCHANGED** (macro 0.752).
+  Tagged `v1.4.0-accuracy-audit-negative-result` (no accuracy-upgrade tag). See
+  `run_logs/{accuracy_code_audit,v1_4_baseline_reproduction,axial_stack_scorer_v1_4,
+  v1_4_raw_accuracy_conclusion}.md`.
 - **v1.3 accuracy + real evidence (LOCKED TEST).** Two real capability wins: **evidence
   intelligence v3** — a combined severe-FN risk score (confidence + stability + retrieval-conflict
   + near-severe, fixed weights, no test fit) raises severe-FN detection AUROC **0.833 → 0.863**
