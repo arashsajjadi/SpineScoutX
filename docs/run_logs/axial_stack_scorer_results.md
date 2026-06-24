@@ -50,7 +50,22 @@ grader under each isolated perturbation regime to quantify the slice share of in
   localization but not grading, record that explicitly (per the evidence above, the likely
   outcome) and keep it for trust/route-quality rather than for the severe-recall headline.
 
+## v1.2 update — instability TYPING confirms the cause (and bounds the payoff)
+Evidence Intelligence v2 (`evidence_intelligence_v2.md`) attributes each finding's
+instability to a cause by isolating slice-only vs in-plane-only perturbation. On the
+subarticular routes the unstable findings are **dominated by `axial_candidate_sensitive`**
+(slice/leveling): L 91 vs in-plane 11, R 98 vs in-plane 21. So the axial leveling choice **is**
+the dominant instability driver for subarticular — a stack-sequence v2 is now **data-motivated**,
+not assumed. **But the payoff is bounded:** `axial_candidate_sensitive` findings carry a severe-FN
+rate of **0.032** (6/189 in the subsample) — ~4× the stable rate (0.008) yet a small absolute
+number of recoverable severe misses, consistent with the robust grader already absorbing most
+leveling noise. **Decision:** keep v1; a trained stack-sequence v2 is justified to reduce these
+specific unstable misses and improve trust/route-quality, but is gated on beating v1 on
+±slice-hit **and** downstream subarticular grading (not run here to protect the release and
+because the recoverable severe-FN count is modest). The `axial_candidate_sensitive` type is now
+surfaced in the case viewer + review reasons so these cases are flagged today.
+
 ## Status
-Bounded analysis complete (documented payoff ceiling from real locked-test instability + the
-per-slice scorer's measured ±1-hit). v2 **not trained** this milestone — specified and gated
-as the precise next step. This is the honest Phase-3 outcome: no overclaim, no blind training.
+Bounded analysis + v1.2 instability-typing evidence complete (cause confirmed = axial leveling;
+payoff bounded = modest recoverable severe FNs). v2 **not trained** this milestone — specified
+and gated as the precise next step. Honest outcome: no overclaim, no blind training.
