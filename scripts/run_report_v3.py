@@ -47,8 +47,16 @@ AUTO_ROUTES = {
         "runs/v1_foraminal_oracle_ctrl",
         "data/cache/rsna_auto_foraminal",
     ),
+    "left_subarticular_stenosis": (
+        "runs/v1_subarticular_auto_robust",
+        "data/cache/rsna_auto_subarticular",
+    ),
+    "right_subarticular_stenosis": (
+        "runs/v1_subarticular_auto_robust",
+        "data/cache/rsna_auto_subarticular",
+    ),
 }
-BLOCKED = ("left_subarticular_stenosis", "right_subarticular_stenosis")
+BLOCKED = ()  # 5/5 auto: no blocked findings
 
 
 def _study_preds(run, cond, cache, device, study):

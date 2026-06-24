@@ -12,10 +12,10 @@ oracle-trained, which wins on auto — see `foraminal_auto_results.md`).
 
 ## Per-study schema (JSON + Markdown)
 - `study_id`, `disclaimer`, `limitations`
-- `auto_supported_conditions`: canal, left/right foraminal
-- `blocked_conditions`: left/right subarticular (axial route not built — see
-  `subarticular_auto_results.md`); each is emitted as `oracle_only_blocked`, never given a
-  fabricated auto severity.
+- `auto_supported_conditions`: **all five** — canal, left/right foraminal, left/right
+  subarticular (subarticular unlocked via the axial level scorer; `blocked_conditions` is
+  now empty). The generator still emits a `blocked_conditions` field (empty) so it degrades
+  gracefully if a route is unavailable, and never fabricates a severity for a missing route.
 - `findings_auto[]` — one entry per (condition, side, level):
   - `severity_estimate` ∈ {normal_mild, moderate, severe}
   - `p_severe`, `confidence` (calibrated top-class probability)
@@ -28,7 +28,8 @@ oracle-trained, which wins on auto — see `foraminal_auto_results.md`).
 ## What it demonstrates
 - Output reads like a research assistant: per-level severity estimates with calibrated
   confidence, explicit uncertainty/review reasons, and clear provenance.
-- It **labels coverage honestly**: auto findings (3/5) vs blocked/oracle-only (2/5).
+- It **labels coverage honestly**: all 5/5 findings are auto-supported (subarticular now
+  via the axial level scorer); any unavailable route would be labelled, never faked.
 - No diagnosis, no treatment, no out-of-scope pathology. A `review_required` flag is a
   research triage signal, not clinical advice.
 
