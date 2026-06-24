@@ -40,7 +40,10 @@ def test_jitter_level_aware_requires_profile():
 
 
 def _toy_profile():
-    per = {lv: np.array([[1.0, -1.0], [2.0, 0.0]]) for lv in ("l1_l2", "l2_l3", "l3_l4", "l4_l5", "l5_s1")}
+    per = {
+        lv: np.array([[1.0, -1.0], [2.0, 0.0]])
+        for lv in ("l1_l2", "l2_l3", "l3_l4", "l4_l5", "l5_s1")
+    }
     sig = dict.fromkeys(per, (1.5, 1.0))
     return LocalizerErrorProfile(per, np.array([0, 1, -1, 0]), sig)
 
@@ -58,8 +61,18 @@ def _make_slice_cache(tmp_path, study="100", series="200", insts=range(8, 13), s
     for i in insts:
         np.save(sl / _slice_npy_rel(study, series, i), rng.random((size, size)).astype(np.float32))
     nodes = pd.DataFrame(
-        [{"study_id": study, "series_id": series, "instance_number": 10, "level": "l4_l5",
-          "condition": "spinal_canal_stenosis", "x": 32.0, "y": 32.0, "severity_index": 2}]
+        [
+            {
+                "study_id": study,
+                "series_id": series,
+                "instance_number": 10,
+                "level": "l4_l5",
+                "condition": "spinal_canal_stenosis",
+                "x": 32.0,
+                "y": 32.0,
+                "severity_index": 2,
+            }
+        ]
     )
     return nodes
 

@@ -1,4 +1,4 @@
-"""2x2 oracle->auto gap decomposition (Phase 1). Diagnostic only; no retraining.
+"""2x2 oracle->auto gap decomposition (Phase 1). Measurement only; no retraining.
 
 The oracle->auto severe-recall collapse conflates two changes: the in-plane crop
 **centre** (GT coordinate vs localizer prediction) and the **slice** (GT-marked

@@ -1,6 +1,6 @@
 # 2×2 oracle→auto gap decomposition (Phase 1)
 
-> Research-only. Not diagnostic. Not clinically validated. Diagnostic instrumentation
+> Research-only. Not diagnostic. Not clinically validated. Measurement instrumentation
 > only — **no retraining**. The two `hybrid_debug` cells use GT information solely to
 > attribute the gap and are never reported as a headline auto number.
 
