@@ -47,6 +47,16 @@ log loss; deterministic seeds. SPIDER uses its official split.
   gap, with better auto log loss. **Safety Mode** (auto): recall@FAR≤10% 0.851 [0.766,
   0.924]; 90% severe recall at FAR 0.153 or ~20% review burden. See
   `run_logs/robust_auto_experiments.md`, `run_logs/safety_mode.md`.
+- **v1-track LOCKED TEST (splits_v1):** the canal auto result is confirmed out-of-val —
+  auto severe recall **0.830 [0.725, 0.929]** (auto-trained) vs **0.434** (oracle-trained
+  control), paired **+0.396 [+0.268, +0.529]**, ~96% of the oracle ceiling. Multi-condition
+  locked-test **oracle** baselines (upper bounds): canal 0.925, L/R foraminal 0.769/0.811,
+  L/R subarticular 0.790/0.854 severe recall. **Auto-localization exists only for canal**
+  (sagittal-T2); foraminal (sagittal-T1) and subarticular (axial-T2) need view-specific
+  localizers (documented frontier). **Default deployable research grader = the canal
+  auto-trained robust E0**; non-canal conditions are oracle-bound until their localizers
+  exist. See `run_logs/canal_locked_test.md`, `run_logs/multicondition_robust_results.md`,
+  `run_logs/safety_mode_v2.md`.
 
 ## Evidence & calibration
 Grad-CAM heatmaps → Anatomical Evidence Consistency (AEC; mean ≈ 0.10, flat across

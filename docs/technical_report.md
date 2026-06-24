@@ -33,6 +33,18 @@ interpretation in [`results.md`](results.md):
   over the deployed E0 (decisive; McNemar p=0.007) — with better auto log loss and a
   stronger severe-first Safety Mode frontier. Full detail: `results.md`,
   `run_logs/robust_auto_experiments.md`.
+- **v0.10–v0.12 — locked test, multi-condition, Safety Mode v2:** on a never-tuned
+  patient-level locked test (`splits_v1`), the canal auto result is **confirmed and
+  amplified** (auto severe recall 0.830 [0.725, 0.929] vs the oracle-trained control's
+  0.434; paired +0.396 [+0.268, +0.529]; McNemar 21/0, p<1e-6; ~96% of the oracle
+  ceiling). Multi-condition locked-test **oracle** baselines (upper bounds): canal 0.925,
+  foraminal 0.77/0.81, subarticular 0.79/0.85 severe recall. The **view-routing taxonomy**
+  shows generalization is gated by view-specific localization (canal=sagittal-T2 ✓;
+  foraminal=sagittal-T1; subarticular=axial-T2), not the grading recipe. Safety Mode v2:
+  the auto-robust grader gives the best frontier (recall@FAR≤10% 0.943; 90% severe recall
+  at 8.5% FAR); naive cost-sensitive (expected-cost) **training is brittle and dominated**
+  (an honest negative). Detail: `results.md`, `run_logs/{locked_test_protocol,
+  canal_locked_test,multicondition_robust_results,safety_mode_v2}.md`.
 
 **Answer to the research question:** *concatenating* anatomy priors does not help
 (the model ignores them); making the model **structurally region-forced** does make

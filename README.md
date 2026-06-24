@@ -101,6 +101,17 @@ BY 4.0). Held-out validation:
   ~81% of the gap — with better auto log loss and a stronger severe-first Safety Mode
   frontier (recall@FAR≤10% 0.851). Detail: [`docs/results.md`](docs/results.md),
   [`docs/run_logs/robust_auto_experiments.md`](docs/run_logs/robust_auto_experiments.md).
+- **v0.10–v0.12 (v1-track, LOCKED TEST):** on a never-tuned patient-level locked test
+  (`splits_v1`), canal robust auto-inference is **confirmed and amplified** — auto severe
+  recall **0.830 [0.725, 0.929]** vs the oracle-trained control's 0.434, a paired
+  **+0.396 [+0.268, +0.529]** (McNemar 21 recovered / 0 lost, p<1e-6), ~96% of the oracle
+  ceiling. Multi-condition locked-test **oracle** baselines (upper bounds): canal 0.925,
+  foraminal 0.77/0.81, subarticular 0.79/0.85 severe recall. **View-routing taxonomy:**
+  only canal has a working auto-localizer (sagittal-T2); foraminal (sagittal-T1
+  parasagittal) and subarticular (axial-T2) need view-specific localizers — the documented
+  next frontier. Safety Mode v2 (auto, canal): recall@FAR≤10% **0.943**, 90% severe recall
+  at 8.5% FAR. Detail: [`docs/run_logs/canal_locked_test.md`](docs/run_logs/canal_locked_test.md),
+  [`docs/run_logs/multicondition_robust_results.md`](docs/run_logs/multicondition_robust_results.md).
 
 No data, DICOMs, masks, crops, caches, weights, or runs are committed.
 

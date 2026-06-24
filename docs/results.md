@@ -250,8 +250,60 @@ severe recall but is **not** decisive; matching the real localizer error (auto-t
 control 0.816); reaches 90% severe recall at FAR 0.153 (vs 0.192) or ~20% review
 burden — tradeoffs reported, not hidden.
 
+## v0.10–v0.12 — LOCKED-TEST, multi-condition, Safety Mode v2 (REAL, v1-track)
+
+> Full writeups: `run_logs/locked_test_protocol.md`, `canal_locked_test.md`,
+> `multicondition_robust_results.md`, `safety_mode_v2.md`. These are evaluated on a
+> **never-tuned locked test** (splits_v1, patient-level train 1382 / dev 296 / test 296;
+> dev = selection, test = final eval only; leakage-tested). The historical seed-1337 val
+> numbers above are kept for history and are **not** v1 claims. Models claimed on the
+> locked test are retrained on splits_v1 `train`.
+
+**Canal robust auto-inference — CONFIRMED on the locked test** (n=1480, severe=53;
+retrained on `train`, selected on `dev` auto, evaluated once on `test`):
+
+| model | test auto severe recall [95% CI] | test oracle |
+|---|---|---|
+| oracle-trained control | 0.434 [0.306, 0.562] | 0.566 |
+| **auto-trained robust** | **0.830 [0.725, 0.929]** | 0.868 |
+
+Paired robust−control (auto, same nodes): **+0.396 [+0.268, +0.529]** (decisive;
+McNemar 21 severe recovered / 0 lost, p<1e-6). Robust auto-training reaches **~96% of
+the oracle ceiling** on a clean locked test — v0.9 confirmed and amplified out-of-val.
+
+**Multi-condition locked-test oracle baselines** (all-condition E0 retrained on `train`;
+oracle = GT-coordinate **upper bound**; auto-localization for non-canal is the documented
+frontier, not yet built):
+
+| condition | GT view | locked-test oracle severe recall [95% CI] |
+|---|---|---|
+| spinal_canal_stenosis | sagittal_t2 | 0.925 [0.849, 0.985] |
+| left_neural_foraminal_narrowing | sagittal_t1 | 0.769 [0.638, 0.891] |
+| right_neural_foraminal_narrowing | sagittal_t1 | 0.811 [0.712, 0.906] |
+| left_subarticular_stenosis | axial_t2 | 0.790 [0.718, 0.857] |
+| right_subarticular_stenosis | axial_t2 | 0.854 [0.778, 0.920] |
+
+**View-routing taxonomy (the honest answer to "does v0.9 generalize to all five?").**
+Only **canal** has a working auto-localizer (sagittal-T2), so only canal has a confirmed
+auto result. **Foraminal** is graded on sagittal-**T1** parasagittal side-specific slices
+(needs a side-aware T1 localizer; v0.9's "slice doesn't matter" is canal-specific).
+**Subarticular** is graded on **axial-T2** (needs an axial localizer + level matching;
+SPIDER has no axial anatomy). Generalization is **gated by view-specific localization,
+not by the grading recipe** — documented with evidence, not faked.
+
+**Safety Mode v2 (locked-test auto, canal).** The auto-robust grader gives the strongest
+severe-first frontier: recall@FAR≤10% **0.943 [0.833, 1.000]**, reaching 90% severe
+recall at **8.5% FAR** (vs the control's 15.5%). A model-disagreement review flag (robust
+vs control) flags 13.4% of nodes and captures 22% of the robust model's severe
+false-negatives. **Honest negative:** cost-sensitive (expected-cost) *training* is brittle
+on this imbalanced 3-class task — it collapses to a moderate-class hedge without class
+weighting and over-predicts severe with it; the dev-selected checkpoint is dominated on
+the locked test (recall@FAR≤10% 0.264 vs the auto-robust 0.943). The effective severe-aware
+recipe is **class-weighted CE + auto-training (auto-robust) + the inference-time decision
+layer**, not a cost-sensitive loss. Detail: `safety_mode_v2.md`.
+
 ## Runtime (RTX 5080)
 RSNA prep 48,692 crops ≈ 5 min; anatomy priors ≈ 3 min; E0/E1 train ≈ 30–45 min
 each (AMP, early-stopped); E4 inference 0.85 ms/slice. Canal robust variants ≈ 5–10 min
-each (canal-only, AMP, early-stopped). Crops/priors/runs are cached, gitignored, and
-resumable.
+each (canal-only, AMP, early-stopped); all-condition E0 retrain ≈ 15–20 min. Crops/priors/
+runs are cached, gitignored, and resumable.
