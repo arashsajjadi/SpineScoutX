@@ -15,7 +15,7 @@
 Subarticular stenosis is graded on **axial-T2**. The gating sub-problem is assigning each
 lumbar level to the correct axial slice with no GT. Pure DICOM-geometry matching
 (sagittal-disc-z → axial-slice-z) was measured insufficient: **27.5% within ±1 slice**
-(median 2 slices / 12.8 mm). A new diagnostic (this milestone, dev split) shows *why* and
+(median 2 slices / 12.8 mm). A new analysis (this milestone, dev split) shows *why* and
 *how to fix it*: the geometry error is a large systematic **per-level bias** (−2.1 slices
 at L1/L2 → +4.0 at L5/S1) plus noise — but each level sits at a **predictable normalized
 z-position** in the stack (l1/l2 0.82 … l5/s1 0.14). So the fix is a **coordinate-supervised
