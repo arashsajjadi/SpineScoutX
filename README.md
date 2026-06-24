@@ -20,16 +20,16 @@ inference**. Full sectioned cards (evidence route, safety, failure note) are in 
 
 ![prediction vs reference](docs/assets/readme/prediction_vs_reference_card.png)
 
-## See real examples (correct, uncertain, and wrong)
-| | a real case card |
-|---|---|
-| **Correct severe** (canal) | [`case_canal_correct_severe`](docs/assets/cases/case_canal_correct_severe.png) |
-| **Hard — right-foraminal severe miss** | [`case_right_foraminal_hard`](docs/assets/cases/case_right_foraminal_hard.png) |
-| **Unstable → flagged for review** | [`case_axial_unstable`](docs/assets/cases/case_axial_unstable.png) |
-| **Review catches a severe FN** | [`case_review_required`](docs/assets/cases/case_review_required.png) |
-| **Mostly normal — 0 reviews** | [`case_mostly_normal`](docs/assets/cases/case_mostly_normal.png) |
+## Real evidence viewer (v1.3) — what the model *saw* → predicted → reference
+![real evidence case](docs/assets/real_cases/case_right_foraminal_hard.png)
 
-Each card is wide and readable, with an explicit **prediction-vs-held-out-reference** column.
+**Panel A** shows the *real derived evidence signals* for this locked-test case (auto crop
+centre, slice index, mean intensity — pixel-free, no DICOMs committed); **Panel B** the model
+prediction next to the **held-out reference** with code-derived correctness; **Panel C** the
+evidence-v3 safety/review + side-aware similar cases. To respect the data licence, committed
+cards are **pixel-free**; the full real-pixel viewer runs locally
+([asset policy](docs/run_logs/real_evidence_asset_policy.md)). More cases (correct, uncertain,
+wrong) in the **[gallery](docs/gallery.md)**.
 
 ## Coverage & performance (locked-test **auto** = real inference)
 | finding | view route | severe recall [95% CI] |
@@ -50,16 +50,22 @@ cluster-bootstrap CIs. Full results: [`docs/results.md`](docs/results.md).
 (it recovers canal & subarticular; foraminal's clean localizer needs none — grader chosen per
 condition).
 
-## Evidence-aware intelligence (v1.1–v1.2)
-![evidence stability](docs/assets/readme/evidence_stability_explainer.png)
+## Evidence intelligence v3 + capability wins (v1.3)
+![evidence intelligence v3](docs/assets/readme/evidence_intelligence_v3_card.png)
 
-Each finding carries an **evidence-stability** signal (re-grade under plausible localizer
-perturbation, no GT) and an **instability *type*** (crop / slice / axial-candidate / route
-sensitive) that names the *cause*. Honest result: instability predicts errors (pooled AUROC
-0.80) but is largely redundant with confidence — it **adds** severe-FN triage value on the
-weakest right-side routes, and every unstable type carries several× the severe-FN rate of
-stable findings. See [`evidence_stability_v1.md`](docs/run_logs/evidence_stability_v1.md),
-[`evidence_intelligence_v2.md`](docs/run_logs/evidence_intelligence_v2.md).
+Two real, locked-test capability wins this release:
+- **Evidence intelligence v3** — a combined severe-FN risk score (confidence + stability +
+  retrieval-conflict + near-severe) **improves severe-FN detection AUROC 0.833 → 0.863**
+  (most on the weak subarticular routes; conf+stability alone was *below* confidence, so the
+  *new* signals do the work). [`evidence_intelligence_v3.md`](docs/run_logs/evidence_intelligence_v3.md).
+- **Axial decode v2** — a train-derived positional-prior monotonic decoder (no CNN retrain,
+  β dev-selected) **improves axial ±1 slice-hit 0.432 → 0.487** on the locked test (geometry
+  baseline 0.275). [`axial_stack_scorer_v2_results.md`](docs/run_logs/axial_stack_scorer_v2_results.md).
+
+Each finding also carries evidence-stability + an instability *type* (crop/slice/axial-candidate/
+route) and **side-aware (v2) similar cases** (same-side rate 1.00 vs v1's ~chance). Honest
+context: stability alone is largely redundant with confidence — it is the *combination* (v3)
+that helps. See also [`evidence_stability_v1.md`](docs/run_logs/evidence_stability_v1.md).
 
 ## Safety mode (severe-first, selective review)
 ![safety mode](docs/assets/readme/safety_mode_explainer.png)
