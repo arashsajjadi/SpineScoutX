@@ -108,7 +108,9 @@ def build_finding(
     axial_level_uncertain_below: float = 0.50,
 ) -> dict[str, Any]:
     """Build one finding dict from a real 3-class probability vector. No invented values."""
-    p = [float(x) for x in probs]
+    # Round first, then take argmax, so severity_estimate is always the argmax of the
+    # *stored* probabilities (avoids a rounding flip on near-tie cases vs the validator).
+    p = [round(float(x), 4) for x in probs]
     pred = int(max(range(len(p)), key=lambda i: p[i]))
     conf = float(p[pred])
     base, parsed_side = split_condition(condition)
@@ -143,9 +145,9 @@ def build_finding(
         "crop_provenance": crop_provenance,
         "severity_estimate": SEVERITIES[pred],
         "probabilities": {
-            "P(normal_mild)": round(p[0], 4),
-            "P(moderate)": round(p[1], 4),
-            "P(severe)": round(p[2], 4),
+            "P(normal_mild)": p[0],
+            "P(moderate)": p[1],
+            "P(severe)": p[2],
         },
         "calibrated_confidence": round(conf, 4),
         "uncertainty_flag": _uncertainty_flag(conf),
