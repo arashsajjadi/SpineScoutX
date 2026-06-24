@@ -45,6 +45,17 @@ interpretation in [`results.md`](results.md):
   at 8.5% FAR); naive cost-sensitive (expected-cost) **training is brittle and dominated**
   (an honest negative). Detail: `results.md`, `run_logs/{locked_test_protocol,
   canal_locked_test,multicondition_robust_results,safety_mode_v2}.md`.
+- **v0.13–v0.15 — five-finding auto (locked test): coverage 1/5 → 3/5.** A sagittal-T1
+  side-aware **foraminal** localizer (median 2.2 px, crop-hit 0.999; DICOM-based laterality)
+  unlocks real auto inference for L/R foraminal narrowing: deployable auto severe recall
+  left 0.788 [0.673, 0.892], right 0.660 [0.524, 0.788]. Robust auto-training *hurt*
+  foraminal (its clean localizer makes the oracle→auto gap small) — so the benefit of
+  robust auto-training scales with the gap size, and the grader is chosen per condition
+  (canal→auto-trained, foraminal→oracle-trained). **Subarticular (axial-T2)** is a measured
+  blocker: z-based level matching reaches only 27.5% within ±1 axial slice. Safety Mode v3
+  spans all 3 auto conditions; a non-diagnostic multi-condition study report labels auto vs
+  blocked findings. v1.0 not tagged. Detail: `run_logs/{foraminal_auto_results,
+  subarticular_auto_results,safety_mode_v3,report_v3}.md`.
 
 **Answer to the research question:** *concatenating* anatomy priors does not help
 (the model ignores them); making the model **structurally region-forced** does make

@@ -302,8 +302,51 @@ the locked test (recall@FAR≤10% 0.264 vs the auto-robust 0.943). The effective
 recipe is **class-weighted CE + auto-training (auto-robust) + the inference-time decision
 layer**, not a cost-sensitive loss. Detail: `safety_mode_v2.md`.
 
+## v0.13–v0.15 — five-finding auto: coverage 1/5 → 3/5 (REAL, locked test)
+
+> Full writeups: `run_logs/foraminal_auto_results.md`, `subarticular_auto_results.md`,
+> `safety_mode_v3.md`, `report_v3.md`. All on the splits_v1 locked test; auto = real
+> inference (no GT at inference); cluster-bootstrap 95% CIs.
+
+**Foraminal (sagittal-T1) auto route — UNLOCKED (→ 3/5).** A side-aware sagittal-T1
+localizer (laterality from DICOM `ImagePositionPatient`, +x=patient-left verified vs GT;
+levels co-planar per side) is excellent: **median 2.2 px, crop-hit@224 0.999**. Deployable
+foraminal **auto** severe recall on the locked test:
+
+| condition | deployable auto severe recall [95% CI] | grader |
+|---|---|---|
+| left_neural_foraminal_narrowing | **0.788 [0.673, 0.892]** | oracle-trained on auto |
+| right_neural_foraminal_narrowing | **0.660 [0.524, 0.788]** | oracle-trained on auto |
+
+**Honest finding (opposite of canal):** robust auto-training *hurt* foraminal (−0.135 L /
+−0.170 R, decisive) — because the clean localizer makes the oracle→auto gap small (left
+−0.077, right −0.264), so clean oracle training + transfer beats noisy auto training.
+**Generalizable:** whether robust auto-training helps is governed by the oracle→auto gap
+size (localizer quality); the grader is selected per condition (canal→auto-trained,
+foraminal→oracle-trained).
+
+**Subarticular (axial-T2) — BLOCKED, measured.** The gating sub-problem (assign each level
+to the right axial slice with no GT) via z-based matching is unreliable: only **27.5%
+within ±1 axial slice** (median 2 slices / 12.8 mm). No faked auto subarticular metric is
+reported; oracle locked-test baselines (canal 0.925, foraminal 0.77/0.81, subarticular
+0.79/0.85) remain the upper bound. Remaining step: a coordinate-supervised axial slice
+scorer (`subarticular_auto_results.md`).
+
+**Safety Mode v3 (locked-test auto, 3 conditions).** Best grader per condition:
+
+| condition | argmax severe recall | recall@FAR≤10% [95% CI] | FAR for 90% severe recall |
+|---|---|---|---|
+| spinal_canal_stenosis | 0.830 | 0.943 [0.833, 1.000] | 0.085 |
+| left_neural_foraminal_narrowing | 0.788 | 0.885 [0.795, 0.962] | 0.123 |
+| right_neural_foraminal_narrowing | 0.660 | 0.811 [0.681, 0.898] | 0.255 |
+
+Plus an abstention + model-disagreement review layer (per condition). A multi-condition
+non-diagnostic study report (`report_v3.md`) labels auto findings (3/5) vs
+oracle-only/blocked (2/5). **v1.0 not tagged — only 3/5 conditions have real auto inference.**
+
 ## Runtime (RTX 5080)
 RSNA prep 48,692 crops ≈ 5 min; anatomy priors ≈ 3 min; E0/E1 train ≈ 30–45 min
 each (AMP, early-stopped); E4 inference 0.85 ms/slice. Canal robust variants ≈ 5–10 min
-each (canal-only, AMP, early-stopped); all-condition E0 retrain ≈ 15–20 min. Crops/priors/
-runs are cached, gitignored, and resumable.
+each (canal-only, AMP, early-stopped); all-condition E0 retrain ≈ 15–20 min. Foraminal
+localizer ≈ 8 min; foraminal auto crops ≈ 10 min; foraminal graders ≈ 15 min each. Crops/
+priors/runs are cached, gitignored, and resumable.

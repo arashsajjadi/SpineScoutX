@@ -112,6 +112,18 @@ BY 4.0). Held-out validation:
   next frontier. Safety Mode v2 (auto, canal): recall@FAR≤10% **0.943**, 90% severe recall
   at 8.5% FAR. Detail: [`docs/run_logs/canal_locked_test.md`](docs/run_logs/canal_locked_test.md),
   [`docs/run_logs/multicondition_robust_results.md`](docs/run_logs/multicondition_robust_results.md).
+- **v0.13–v0.15 (five-finding auto, LOCKED TEST): coverage 1/5 → 3/5.** A sagittal-T1
+  side-aware **foraminal** auto route (localizer median 2.2 px, crop-hit 0.999; laterality
+  from DICOM) unlocks real auto inference for L/R foraminal narrowing: deployable auto
+  severe recall **left 0.788 [0.673, 0.892], right 0.660 [0.524, 0.788]**. Honest finding
+  (opposite of canal): robust auto-training *hurt* foraminal because its clean localizer
+  makes the oracle→auto gap small — so the benefit of robust auto-training scales with the
+  gap size; pick the grader per condition. **Subarticular (axial-T2) is a measured
+  blocker** (z-based level matching only 27.5% within ±1 slice; no faked metric). Safety
+  Mode v3 spans all 3 auto conditions; a multi-condition non-diagnostic study report labels
+  auto vs blocked findings. **v1.0 not tagged (3/5 auto).** Detail:
+  [`docs/run_logs/foraminal_auto_results.md`](docs/run_logs/foraminal_auto_results.md),
+  [`docs/run_logs/subarticular_auto_results.md`](docs/run_logs/subarticular_auto_results.md).
 
 No data, DICOMs, masks, crops, caches, weights, or runs are committed.
 

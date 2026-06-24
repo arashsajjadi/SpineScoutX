@@ -57,6 +57,16 @@ log loss; deterministic seeds. SPIDER uses its official split.
   auto-trained robust E0**; non-canal conditions are oracle-bound until their localizers
   exist. See `run_logs/canal_locked_test.md`, `run_logs/multicondition_robust_results.md`,
   `run_logs/safety_mode_v2.md`.
+- **v0.13–v0.15 five-finding auto (LOCKED TEST): coverage 1/5 → 3/5.** Foraminal L/R now
+  have a real auto route (sagittal-T1 side-aware localizer, median 2.2 px, crop-hit 0.999).
+  Deployable foraminal auto severe recall: left **0.788 [0.673, 0.892]**, right
+  **0.660 [0.524, 0.788]** — and the deployable foraminal grader is **oracle-trained**
+  (robust auto-training hurt foraminal, because its clean localizer makes the oracle→auto
+  gap small — opposite of canal). **Default deployable graders: canal = auto-trained robust;
+  foraminal = oracle-trained.** Subarticular L/R remain a **measured blocker** (axial
+  z-level-matching only 27.5% within ±1 slice). Safety Mode v3 covers all 3 auto conditions.
+  See `run_logs/foraminal_auto_results.md`, `run_logs/subarticular_auto_results.md`,
+  `run_logs/safety_mode_v3.md`, `run_logs/report_v3.md`.
 
 ## Evidence & calibration
 Grad-CAM heatmaps → Anatomical Evidence Consistency (AEC; mean ≈ 0.10, flat across
