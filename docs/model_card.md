@@ -66,6 +66,21 @@ log loss; deterministic seeds. SPIDER uses its official split.
   foraminal = oracle-trained.** Subarticular L/R remain a **measured blocker** (axial
   z-level-matching only 27.5% within ±1 slice). Safety Mode v3 covers all 3 auto conditions.
   See `run_logs/foraminal_auto_results.md`, `run_logs/safety_mode_v3.md`, `run_logs/report_v3.md`.
+- **v1.2 real case viewer + evidence intelligence v2 (LOCKED TEST).** A **case-viewer layer**
+  (`reporting/case_viewer.py`) places each prediction next to its **held-out reference label**
+  (reference only — never an input) and derives **correctness** (severe_correct / exact /
+  severe_false_negative / severe_false_positive / non_severe_mismatch) by code; wide
+  prediction-vs-reference cards make where the model is right/uncertain/wrong explicit
+  (`make_real_case_viewer_pack.py`). **Evidence intelligence v2** attributes each finding's
+  instability to a cause (crop / slice / axial-candidate / route sensitive): subarticular
+  instability is dominated by axial-candidate (leveling), foraminal by slice (best-slice);
+  every unstable type carries several× the stable severe-FN rate. **Similar research-case
+  retrieval** (explanation-only, never changes a prediction): grader-embedding kNN gives
+  severity agreement 0.89/0.81/0.73 (canal/foraminal/subarticular) but ~chance same-side
+  (laterality is a route property, not an embedding property). README redesigned for
+  readability (real-case hero, large fonts, Markdown numeric tables). Baseline metrics
+  unchanged. See `run_logs/{real_case_viewer,evidence_intelligence_v2,similar_case_retrieval_v1,
+  axial_stack_scorer_results}.md`.
 - **v1.1 evidence-aware intelligence + generalization (LOCKED TEST).** Each finding now
   carries an **evidence-stability** score (re-grade under K plausible localizer perturbations,
   auto coords only — no GT; baseline reproduces deployed preds exactly). Honest evaluation:

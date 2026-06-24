@@ -39,3 +39,16 @@ claim a decisive improvement. The **deployable gain** is evidence-stability-awar
 which preferentially flags the unstable right-side misses for human research review.
 
 Reproduce: `python scripts/run_right_foraminal_audit.py`.
+
+## v1.2 reconfirmation (no new model improvement — honest)
+A right-specialist grader was non-decisive in v1.0 and per-level dev-thresholding does not help
+(above). v1.2 did **not** retrain another variant (it would chase the same sample/signal limit);
+instead it adds **visibility + targeted triage**: (1) evidence-intelligence v2 shows right-
+foraminal instability is **`slice_sensitive`** (best-slice selection is the unstable cause, not
+in-plane crop), so the review reason is route-appropriate; (2) the real **case viewer** surfaces
+each right-foraminal severe miss next to its held-out reference (e.g. `case_right_foraminal_hard`)
+so the failure is explicit; (3) similar-research-case retrieval returns severity-relevant but
+side-agnostic neighbours (the embedding does not encode laterality). **Conclusion unchanged:**
+right-foraminal is the weakest route, limited by signal/sample size (n_severe≈53), not a fixable
+tuning knob. Improvement remains gated on more right-side severe data or a dedicated right
+localizer — documented as the next step.

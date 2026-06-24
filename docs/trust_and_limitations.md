@@ -17,6 +17,18 @@
 - **Auditable outputs.** Finding graphs are deterministic, schema-validated, and proven
   model-derived (not templated) by CI tests; no diagnosis/treatment wording; anonymized.
 
+## Real case viewer (v1.2) — see correctness for yourself
+- Every showcased study now shows the **model prediction next to the held-out reference label**
+  with a **code-derived** correctness verdict. The reference is shown for transparency only and
+  is **never** a model input (auto inference uses no GT). This makes the system's mistakes
+  (severe false negatives / positives) visible, not hidden behind aggregate metrics.
+- **Similar research-case retrieval is explanation-only** — it never changes a prediction. It
+  retrieves severity-relevant neighbours (severity agreement ≈0.73–0.89) but is **side-agnostic**
+  (same-side rate ≈chance): the image embedding captures morphology, not laterality.
+- **Instability typing (v2)** names the cause of an unstable finding but does not make it correct;
+  it is a triage/explanation aid. **Right-foraminal remains the weakest route** — reconfirmed in
+  v1.2 as signal/sample-limited (its instability is `slice_sensitive`, i.e. best-slice choice).
+
 ## Evidence-aware reliability (v1.1) — honest summary
 - **Evidence stability** (re-grading under plausible localizer perturbation) is a *real*
   signal: it predicts errors (AUROC 0.80) and severe FNs (0.71) above chance — **but it is

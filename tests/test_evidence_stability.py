@@ -97,3 +97,37 @@ def test_config_for_known_conditions():
     assert es.config_for("left_subarticular_stenosis").slice_jitter == 2
     assert es.config_for("spinal_canal_stenosis").slice_jitter == 1
     assert es.config_for("unknown_condition").k == 8  # falls back to default
+
+
+def test_classify_instability_type():
+    # stable / low instability -> stable
+    assert (
+        es.classify_instability_type(0.02, 0.01, 0.01, route="axial_t2", grade="stable") == "stable"
+    )
+    assert (
+        es.classify_instability_type(0.05, 0.03, 0.02, route="axial_t2", grade="unstable")
+        == "stable"
+    )  # below min_unstable
+    # slice dominant on axial -> axial_candidate_sensitive
+    assert (
+        es.classify_instability_type(0.5, 0.45, 0.05, route="axial_t2", grade="unstable")
+        == "axial_candidate_sensitive"
+    )
+    # slice dominant on sagittal -> slice_sensitive
+    assert (
+        es.classify_instability_type(0.5, 0.45, 0.05, route="sagittal_t1", grade="unstable")
+        == "slice_sensitive"
+    )
+    # in-plane dominant -> crop_sensitive
+    assert (
+        es.classify_instability_type(0.5, 0.05, 0.45, route="sagittal_t2", grade="unstable")
+        == "crop_sensitive"
+    )
+    # balanced -> route_sensitive
+    assert (
+        es.classify_instability_type(0.5, 0.25, 0.25, route="sagittal_t2", grade="unstable")
+        == "route_sensitive"
+    )
+    assert es.classify_instability_type(0.5, 0.0, 0.0, route="axial_t2", grade="unstable") == (
+        "route_sensitive"
+    )
