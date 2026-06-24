@@ -73,10 +73,23 @@ def _is_correct(c: str) -> bool:
     return c in ("severe_correct", "exact_correct")
 
 
-def _viewer_finding(f: dict[str, Any], instability_type: str | None) -> dict[str, Any]:
+def _viewer_finding(
+    f: dict[str, Any], instability_type: str | None, retrieval: dict[str, Any] | None
+) -> dict[str, Any]:
     ref = f.get("reference_label")
     correctness = finding_correctness(f["severity_estimate"], ref)
     stab = f.get("evidence_stability") or {}
+    sim = None
+    if retrieval:
+        sim = {
+            "k": int(retrieval.get("k", 0)),
+            "severity_distribution": retrieval.get("severity_distribution", {}),
+            "majority_severity": retrieval.get("majority_severity"),
+            "retrieval_warning": (
+                "similar research cases (nearest grader-embedding neighbours), "
+                "NOT a clinical reference; does not change the prediction"
+            ),
+        }
     return {
         "condition": f["condition"],
         "level": f["level"],
@@ -94,6 +107,7 @@ def _viewer_finding(f: dict[str, Any], instability_type: str | None) -> dict[str
         "held_out_reference_label": ref,  # reference only — NOT a model input
         "correctness": correctness,
         "review_status": "uncertain_review" if f["review_required"] else "auto_accepted",
+        "similar_research_cases": sim,  # explanation-only; never changes the prediction
     }
 
 
@@ -141,16 +155,24 @@ def build_case_viewer(
     graph: dict[str, Any],
     *,
     instability_types: dict[tuple[str, str, str], str] | None = None,
+    retrieval: dict[tuple[str, str, str], dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Build a case-viewer object from a validated finding graph.
 
     ``instability_types`` (optional) maps ``(condition, level, side)`` to an
     instability type from evidence-intelligence v2 (crop/slice/axial_candidate/route
-    sensitive). Correctness is derived here from prediction vs held-out reference.
+    sensitive). ``retrieval`` (optional) maps the same key to a similar-research-cases
+    summary (explanation only — never changes the prediction). Correctness is derived here
+    from prediction vs held-out reference.
     """
     itypes = instability_types or {}
+    retr = retrieval or {}
     vfindings = [
-        _viewer_finding(f, itypes.get((f["condition"], f["level"], f.get("side") or "")))
+        _viewer_finding(
+            f,
+            itypes.get((f["condition"], f["level"], f.get("side") or "")),
+            retr.get((f["condition"], f["level"], f.get("side") or "")),
+        )
         for f in graph["findings"]
     ]
     p_sev = [f["probabilities"]["P(severe)"] for f in graph["findings"]]
@@ -241,6 +263,16 @@ def render_case_markdown(cv: dict[str, Any]) -> str:
             f"{f['route_quality'] or '-'} | {','.join(f['review_reasons']) or '-'} | "
             f"{f['held_out_reference_label'] or '-'} | {_CORRECT_MARK[f['correctness']]} |"
         )
+    sims = [f for f in cv["findings"] if f.get("similar_research_cases")]
+    if sims:
+        lines += ["", "**Similar research cases** (explanation only — never changes a prediction):"]
+        for f in sims[:4]:
+            sc = f["similar_research_cases"]
+            dist = ", ".join(f"{k}:{v}" for k, v in sc["severity_distribution"].items())
+            lines.append(
+                f"- {f['condition']} {f['level']}: top-{sc['k']} → majority "
+                f"`{sc['majority_severity']}` ({dist})"
+            )
     lines += [
         "",
         f"_{cv['reference_note']}_",

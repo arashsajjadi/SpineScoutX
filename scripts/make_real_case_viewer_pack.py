@@ -33,6 +33,7 @@ PACK = ROOT / "outputs/real/case_viewer_pack"
 ASSETS = ROOT / "docs/assets/cases"
 DOC = ROOT / "docs/run_logs/real_case_viewer.md"
 V2_RECORDS = ROOT / "outputs/real/evidence_intel_v2_records.parquet"
+RETR_RECORDS = ROOT / "outputs/real/similar_case_retrieval_records.parquet"
 
 _spec = importlib.util.spec_from_file_location(
     "show", ROOT / "scripts/make_model_output_showcase.py"
@@ -64,14 +65,32 @@ def _load_instability_types():
     return out
 
 
+def _load_retrieval():
+    if not RETR_RECORDS.exists():
+        return {}
+    import pandas as pd
+
+    df = pd.read_parquet(RETR_RECORDS)
+    out: dict[tuple[str, str, str, str], dict] = {}
+    for r in df.itertuples():
+        out[(r.condition, str(r.study_id), r.level, str(r.side or ""))] = {
+            "k": int(r.k),
+            "severity_distribution": dict(r.severity_distribution),
+            "majority_severity": r.majority_severity,
+        }
+    return out
+
+
 def _build_viewers(device):
     graphs = _show._build_graphs(device)
     itypes_flat = _load_instability_types()
+    retr_flat = _load_retrieval()
     studies_with_types = {k[1] for k in itypes_flat}
     viewers = {}
     for study, g in graphs.items():
         per = {(c, lv, sd): t for (c, st, lv, sd), t in itypes_flat.items() if st == study}
-        viewers[study] = cvm.build_case_viewer(g, instability_types=per)
+        per_r = {(c, lv, sd): d for (c, st, lv, sd), d in retr_flat.items() if st == study}
+        viewers[study] = cvm.build_case_viewer(g, instability_types=per, retrieval=per_r)
         cvm.validate_case_viewer(viewers[study])
     return viewers, studies_with_types
 
@@ -388,6 +407,20 @@ def render_card(v, path, title):
         color="#e65100",
         va="center",
     )
+    # similar research cases (explanation only) — show for the top finding if available
+    sim_f = next((f for f in _relevant_findings(v, 3) if f.get("similar_research_cases")), None)
+    if sim_f:
+        sc = sim_f["similar_research_cases"]
+        dist = " ".join(f"{k[:4]}:{val}" for k, val in sc["severity_distribution"].items())
+        ax.text(
+            55,
+            8.6,
+            f"similar research cases (top-{sc['k']}): {dist}  → majority {sc['majority_severity']} "
+            "(explanation only, no prediction change)",
+            fontsize=10,
+            color="#555",
+            va="center",
+        )
 
     ax.text(
         1.5, 5.5, "5 · CORRECTNESS / FAILURE NOTE", fontsize=14, fontweight="bold", color="#0d3b66"

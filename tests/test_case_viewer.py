@@ -111,6 +111,31 @@ def test_markdown_reflects_json():
     assert "severe-correct" in md
 
 
+def test_similar_research_cases_threaded_and_explanation_only():
+    f = fg.build_finding(
+        "left_subarticular_stenosis", "l4_l5", [0.3, 0.2, 0.5], reference_label="severe"
+    )
+    view = cv.build_case_viewer(
+        _graph([f]),
+        retrieval={
+            ("left_subarticular_stenosis", "l4_l5", "left"): {
+                "k": 5,
+                "severity_distribution": {"normal_mild": 1, "moderate": 1, "severe": 3},
+                "majority_severity": "severe",
+            }
+        },
+    )
+    cv.validate_case_viewer(view)
+    sim = view["findings"][0]["similar_research_cases"]
+    assert sim["majority_severity"] == "severe"
+    assert sim["severity_distribution"]["severe"] == 3
+    assert "research cases" in sim["retrieval_warning"]
+    # retrieval must NOT change the prediction (still argmax of probs = severe)
+    assert view["findings"][0]["severity_estimate"] == "severe"
+    md = cv.render_case_markdown(view)
+    assert "Similar research cases" in md
+
+
 def test_instability_type_threaded():
     f = fg.build_finding(
         "left_subarticular_stenosis", "l4_l5", [0.3, 0.2, 0.5], reference_label="severe"
