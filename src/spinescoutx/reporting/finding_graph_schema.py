@@ -291,7 +291,8 @@ def render_markdown(graph: dict[str, Any]) -> str:
         f"{s['n_severe_estimates']} severe estimate(s), {s['n_review_required']} need review, "
         f"{s['n_high_confidence']} high-confidence, {s['n_blocked']} blocked",
         "",
-        "| condition | side | level | view route | severity estimate | P(severe) | confidence | flag | review | ref |",
+        "| condition | side | level | view route | severity estimate | P(severe) | "
+        "confidence | flag | review | ref |",
         "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for f in sorted(

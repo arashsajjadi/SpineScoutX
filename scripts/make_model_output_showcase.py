@@ -126,7 +126,7 @@ def _axial_scores(studies, device):
 def _build_graphs(device):
     by_study: dict[str, list] = {}
     for cond in ROUTES:
-        for (study, level), rec in _test_preds(cond, device).items():
+        for (study, _level), rec in _test_preds(cond, device).items():
             by_study.setdefault(study, []).append(rec)
     # axial scorer conf only for studies that have subarticular findings
     sub_studies = sorted(
@@ -199,7 +199,10 @@ def _select(graphs):
     # mostly-normal / low-review case: shows the review flag is selective, not always-on
     for study, g in sorted(
         graphs.items(),
-        key=lambda kv: (kv[1]["study_summary"]["n_review_required"], kv[1]["study_summary"]["max_p_severe"]),
+        key=lambda kv: (
+            kv[1]["study_summary"]["n_review_required"],
+            kv[1]["study_summary"]["max_p_severe"],
+        ),
     ):
         if study in used:
             continue
@@ -362,7 +365,7 @@ def render_schema_visual(path):
         ("calibrated_confidence + uncertainty_flag", "top-class prob → high/moderate/review"),
         (
             "review_required + review_reasons",
-            "low_confidence · high_entropy · model_disagreement · axial_level_uncertainty · near_severe",
+            "low_confidence · high_entropy · model_disagreement · axial_level_uncertainty",
         ),
         ("localizer", "route · confidence · axial_level_scorer_score"),
         (
@@ -412,7 +415,7 @@ def main() -> int:
         "case_mostly_normal_card": "Mostly normal/mild",
     }
     index = []
-    for name, (study, g) in chosen.items():
+    for name, (_study, g) in chosen.items():
         (PACK / f"{g['case_id']}.json").write_text(json.dumps(g, indent=2))
         (PACK / f"{g['case_id']}.md").write_text(fg.render_markdown(g))
         render_card(g, ASSETS / f"{name}.png", titles.get(name, name))
@@ -443,7 +446,8 @@ def _doc(index):
     ]
     for name, cid, s in index:
         lines.append(
-            f"| `{name}` | {cid} | {s['max_p_severe']:.2f} | {s['n_severe_estimates']} | {s['n_review_required']} |"
+            f"| `{name}` | {cid} | {s['max_p_severe']:.2f} | "
+            f"{s['n_severe_estimates']} | {s['n_review_required']} |"
         )
     lines += ["", "Cards: `docs/assets/showcase/*.png`. Schema: `report_schema_v4.md`."]
     DOC.write_text("\n".join(lines) + "\n")
