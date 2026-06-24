@@ -82,24 +82,34 @@ def config_for(condition: str) -> PerturbConfig:
     return DEFAULT_CONFIGS.get(condition, PerturbConfig())
 
 
-def sample_offsets(cfg: PerturbConfig, rng: np.random.Generator) -> list[tuple[float, float, int]]:
+def sample_offsets(
+    cfg: PerturbConfig, rng: np.random.Generator, mode: str = "full"
+) -> list[tuple[float, float, int]]:
     """Draw ``cfg.k`` ``(dx, dy, ds)`` perturbations of the auto localization.
 
     In-plane: isotropic ``N(0, xy_sigma)`` with a heavy-tail mixture (prob
     ``tail_prob`` -> ``N(0, tail_sigma)``), clamped to ``+/- max_offset``. Slice:
     uniform integer in ``[-slice_jitter, slice_jitter]``. The list never includes
     the zero offset (the baseline is graded separately from the original cache).
+
+    ``mode`` isolates a component for attribution analysis: ``full`` (both),
+    ``slice`` (slice shift only — the axial leveling component; dx=dy=0), or
+    ``inplane`` (in-plane jitter only; ds=0).
     """
+    if mode not in ("full", "slice", "inplane"):
+        raise ValueError(f"unknown perturb mode {mode!r}")
     out: list[tuple[float, float, int]] = []
     for _ in range(int(cfg.k)):
-        sig = cfg.tail_sigma if rng.random() < cfg.tail_prob else cfg.xy_sigma
-        dx = float(np.clip(rng.normal(0.0, sig), -cfg.max_offset, cfg.max_offset))
-        dy = float(np.clip(rng.normal(0.0, sig), -cfg.max_offset, cfg.max_offset))
-        ds = (
-            int(rng.integers(-cfg.slice_jitter, cfg.slice_jitter + 1))
-            if cfg.slice_jitter > 0
-            else 0
-        )
+        if mode == "slice":
+            dx = dy = 0.0
+        else:
+            sig = cfg.tail_sigma if rng.random() < cfg.tail_prob else cfg.xy_sigma
+            dx = float(np.clip(rng.normal(0.0, sig), -cfg.max_offset, cfg.max_offset))
+            dy = float(np.clip(rng.normal(0.0, sig), -cfg.max_offset, cfg.max_offset))
+        if mode == "inplane" or cfg.slice_jitter <= 0:
+            ds = 0
+        else:
+            ds = int(rng.integers(-cfg.slice_jitter, cfg.slice_jitter + 1))
         out.append((dx, dy, ds))
     return out
 
