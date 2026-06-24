@@ -46,8 +46,12 @@ def build_e0_like_config(
     lr: float,
     batch_size: int,
     output_root: str = "runs",
+    loss: str | None = None,
 ) -> Config:
-    """Load the E0 config and override only the training-schedule / naming fields."""
+    """Load the E0 config and override only the training-schedule / naming fields.
+
+    ``loss`` (e.g. ``"cost_sensitive"``) overrides the classification loss when set.
+    """
     d = json.loads(Path(e0_config_path).read_text())
     d["name"] = name
     d["output_root"] = output_root
@@ -57,6 +61,8 @@ def build_e0_like_config(
         "lr": float(lr),
         "batch_size": int(batch_size),
     }
+    if loss is not None:
+        d["train"]["loss"] = str(loss)
     return config_from_dict(d)
 
 
@@ -147,6 +153,7 @@ def train_robust_variant(
     num_workers: int = 0,
     device: str = "auto",
     seed: int = 1337,
+    loss: str | None = None,
 ) -> dict[str, Any]:
     """Train one robust variant; select on the AUTO val set; save run artifacts.
 
@@ -163,7 +170,7 @@ def train_robust_variant(
     use_amp = device_t.type == "cuda"
 
     cfg = build_e0_like_config(
-        e0_config_path, name=variant, epochs=epochs, lr=lr, batch_size=batch_size
+        e0_config_path, name=variant, epochs=epochs, lr=lr, batch_size=batch_size, loss=loss
     )
     model = _build_model(cfg).to(device_t)
 
