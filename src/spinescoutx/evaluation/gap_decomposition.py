@@ -350,6 +350,16 @@ def collect_probs(
         man, cache_root, crop_size=cfg.data.crop_size, use_25d=cfg.data.use_25d, guided=False
     )
     keys = [f"{str(r.study_id)}|{str(r.level)}" for r in man.itertuples()]
+    # Guard (v1.4 audit B1): the result dict is keyed by "study|level"; a manifest with more
+    # than one row per (study, level) — e.g. a combined sided manifest — would silently
+    # overwrite rows and bias the metric. Deployed callers pre-filter to one condition+side
+    # (verified 0 duplicates), so this raises loudly instead of corrupting silently.
+    if len(set(keys)) != len(keys):
+        raise ValueError(
+            "collect_probs: duplicate (study|level) keys in manifest "
+            f"({len(keys) - len(set(keys))} dups). Pre-filter to a single condition+side, "
+            "or key by (study, condition, level, side)."
+        )
     loader = DataLoader(ds, batch_size=64, shuffle=False, num_workers=4)
     out: dict[str, tuple[int, np.ndarray]] = {}
     idx = 0
