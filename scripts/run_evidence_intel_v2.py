@@ -131,9 +131,7 @@ def run_condition(cond, device, max_studies, seed):
     for mode in ("full", "slice", "inplane"):
         rng = np.random.default_rng(seed)
         offs = [es.sample_offsets(cfgp, rng, mode=mode) for _ in rows]
-        regimes[mode] = _regime_probs(
-            model, rows, lv, cd, device, crop_size, cache, decoder, offs
-        )
+        regimes[mode] = _regime_probs(model, rows, lv, cd, device, crop_size, cache, decoder, offs)
     recs = []
     for i, r in enumerate(rows):
         inst = {}
