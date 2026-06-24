@@ -3,8 +3,29 @@
 > Research-only · not diagnostic · not clinically validated · not for medical
 > decision-making. Every card renders a **structured model output** (a finding graph) or a
 > metric plot — **no DICOM pixels, no patient identifiers** (cases are hashed `case_*`).
-> Regenerate: `python scripts/make_model_output_showcase.py` and
-> `python scripts/make_showcase_assets.py`.
+> Regenerate: `python scripts/make_real_case_viewer_pack.py`,
+> `python scripts/make_model_output_showcase.py`, `python scripts/make_showcase_assets.py`.
+
+## 0. Real case viewer (v1.2) — prediction vs held-out reference
+Each wide card shows, for one anonymized locked-test study: input/evidence route → **model
+prediction** → **held-out reference label** (transparency only, never an input) → code-derived
+**correctness** → safety/review → a plain-language note.
+[How to read a card](assets/cases/prediction_vs_reference_legend.png).
+
+| category | card |
+|---|---|
+| **Canal — correct severe** | ![](assets/cases/case_canal_correct_severe.png) |
+| **Left foraminal — correct severe** | ![](assets/cases/case_left_foraminal_correct_severe.png) |
+| **Right foraminal — hard (severe miss)** | ![](assets/cases/case_right_foraminal_hard.png) |
+| **Subarticular — correct severe** | ![](assets/cases/case_subarticular_correct.png) |
+| **Axial — unstable (flagged)** | ![](assets/cases/case_axial_unstable.png) |
+| **Model disagreement** | ![](assets/cases/case_model_disagreement.png) |
+| **Review catches a severe FN** | ![](assets/cases/case_review_required.png) |
+| **Mostly normal — 0 reviews** | ![](assets/cases/case_mostly_normal.png) |
+
+Cards also carry the **instability type** (crop / slice / axial-candidate / route sensitive)
+and a **similar-research-cases** severity distribution (explanation only; never changes the
+prediction). See [`real_case_viewer.md`](run_logs/real_case_viewer.md).
 
 ## 1. What the model receives → what it does
 ![pipeline](assets/hero_pipeline.png)
