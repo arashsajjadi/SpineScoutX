@@ -38,6 +38,15 @@ log loss; deterministic seeds. SPIDER uses its official split.
   wrong-region Δwll 0.014–0.020, ~20× E1; `target_region_only` best) and reaches a
   higher severe-recall frontier (sevR 0.855 vs E0 0.751), but is not a free aggregate
   win and does not yet improve AEC. See `docs/results.md` / `run_logs/e2_ablation_results.md`.
+- **The numbers above are oracle-crop UPPER BOUNDS (GT localizer coordinates).** On the
+  real **auto-localized** canal distribution the deployed E0 severe recall is 0.644.
+  The oracle→auto collapse is entirely **in-plane crop-centre** error (2×2: in-plane
+  −0.184 decisive; slice +0.011 n.s.). **Robust auto-inference** — training the grader
+  on auto-localized crops — recovers it: auto severe recall **0.793 [0.696, 0.881]**, a
+  paired **+0.149 [+0.050, +0.243]** over E0 (decisive; McNemar p=0.007), ~81% of the
+  gap, with better auto log loss. **Safety Mode** (auto): recall@FAR≤10% 0.851 [0.766,
+  0.924]; 90% severe recall at FAR 0.153 or ~20% review burden. See
+  `run_logs/robust_auto_experiments.md`, `run_logs/safety_mode.md`.
 
 ## Evidence & calibration
 Grad-CAM heatmaps → Anatomical Evidence Consistency (AEC; mean ≈ 0.10, flat across

@@ -24,6 +24,16 @@ interpretation in [`results.md`](results.md):
   0.751). It is not a free aggregate win (E2 ≈ E0 at the selected checkpoint) and AEC
   stays ≈ 0.10. Full detail: [`results.md`](results.md).
 
+- **v0.6/v0.9 — honest auto-inference (the headline since v0.5):** the metrics above
+  are **oracle-crop upper bounds**. A disc-level localizer + a controlled 2×2
+  decomposition show the oracle→auto canal severe-recall collapse (0.828→0.644) is
+  **entirely in-plane crop-centre error** (in-plane −0.184 [−0.291, −0.089], decisive;
+  slice +0.011, not decisive). Training the grader on **auto-localized crops** recovers
+  it — auto severe recall **0.793 [0.696, 0.881]**, a paired **+0.149 [+0.050, +0.243]**
+  over the deployed E0 (decisive; McNemar p=0.007) — with better auto log loss and a
+  stronger severe-first Safety Mode frontier. Full detail: `results.md`,
+  `run_logs/robust_auto_experiments.md`.
+
 **Answer to the research question:** *concatenating* anatomy priors does not help
 (the model ignores them); making the model **structurally region-forced** does make
 anatomy operationally used and lifts the severe-recall frontier, though not aggregate
@@ -231,7 +241,10 @@ inconsistent Grad-CAM heatmaps in the synthetic evidence panel. None cherry-pick
 
 ## 15. Limitations
 
-- **No real-data results** in this environment (datasets absent).
+- **Oracle-crop upper bound:** the v0.4–v0.5 grading metrics assume GT localizer
+  coordinates. The deployable auto-localized numbers are weaker (v0.6 measured the gap;
+  v0.9 decomposed it to in-plane crop-centre error and recovered ~81% of the canal
+  severe-recall gap by training on the auto distribution — see `results.md`).
 - **Anatomy ≠ pathology:** SPIDER priors are anatomy masks, not stenosis masks.
 - **Approximate regions** for foraminal/subarticular AEC (flagged everywhere).
 - **No clinical or external validation.**

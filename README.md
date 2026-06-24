@@ -44,6 +44,10 @@ contribution is scoped to:
 - **anatomical evidence-consistency** scoring (AEC);
 - **counterfactual anatomy ablation** (correct / shuffled / zero / noise);
 - **calibration-aware, non-diagnostic structured reporting**;
+- an honest **oracle→auto gap decomposition + recovery recipe** — quantify the cost of
+  replacing GT localizer coordinates with a real localizer, decompose it (in-plane vs
+  slice), and recover it by training on the auto-localized distribution, all reported on
+  the **auto** distribution with bootstrap CIs;
 - minimal, license-aware, reproducible research engineering.
 
 ## 4. Datasets
@@ -88,6 +92,15 @@ BY 4.0). Held-out validation:
   **0.855** reachable vs E0's 0.751). It is **not** a free aggregate-accuracy win
   (E2 ≈ E0 at the selected checkpoint) and does not yet improve evidence
   localization (AEC ≈ 0.10). Honest detail: [`docs/results.md`](docs/results.md).
+- **v0.9 finding (robust auto-inference):** the v0.4–0.5 numbers above are **oracle-crop
+  upper bounds**. A controlled 2×2 shows the oracle→auto severe-recall collapse
+  (canal 0.828→0.644) is **entirely in-plane crop-centre** error (in-plane −0.184
+  [−0.291, −0.089], decisive; slice +0.011, not decisive). Training the grader on
+  **auto-localized crops** recovers it: auto severe recall **0.793 [0.696, 0.881]**, a
+  paired **+0.149 [+0.050, +0.243]** over the deployed E0 (decisive; McNemar p=0.007) —
+  ~81% of the gap — with better auto log loss and a stronger severe-first Safety Mode
+  frontier (recall@FAR≤10% 0.851). Detail: [`docs/results.md`](docs/results.md),
+  [`docs/run_logs/robust_auto_experiments.md`](docs/run_logs/robust_auto_experiments.md).
 
 No data, DICOMs, masks, crops, caches, weights, or runs are committed.
 

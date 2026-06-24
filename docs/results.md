@@ -209,7 +209,49 @@ stenosis is the hardest condition (F1 0.625). E1: 474 flagged. E4: disc Dice (0.
 lags canal/vertebra. See `outputs/real/*_failure_cases.csv`, `*_error_analysis.md`,
 and the figures under `outputs/real/figures/` (all gitignored; regenerable).
 
+## v0.9 — Robust auto-inference: decomposing AND closing the oracle→auto gap (REAL)
+
+> Full writeups: `run_logs/gap_decomposition_2x2.md`, `run_logs/robust_auto_experiments.md`,
+> `run_logs/safety_mode.md`, `run_logs/localizer_error_profile.md`. **All v0.4–v0.7
+> oracle-crop numbers above are an upper bound; the auto-localized distribution is the
+> real inference target.**
+
+**1. The gap is in-plane, not slice (2×2 decomposition, no retraining).** Holding the
+series fixed and varying only the crop centre (GT vs localizer) and slice (GT vs
+geometric-mid), on the same 1955 canal val nodes (87 severe), cluster-bootstrap CIs:
+
+| cell | severe recall [95% CI] | isolates |
+|---|---|---|
+| GT-xy / GT-slice (oracle) | 0.828 [0.742, 0.904] | upper bound |
+| auto-xy / GT-slice | 0.644 [0.528, 0.754] | **in-plane −0.184 [−0.291, −0.089] (decisive)** |
+| GT-xy / mid-slice | 0.839 [0.750, 0.918] | slice +0.011 [−0.039, +0.065] (**not** decisive) |
+| auto-xy / mid-slice (auto) | 0.644 [0.536, 0.746] | combined |
+
+So the −18 pp collapse is **entirely in-plane crop-centre error**; slice selection is
+not the bottleneck (so no slice selector was built). The localizer error is
+superior-inferior dominated (σ_y up to 34 px at L1/L2) and heavy-tailed (p99 ~103 px).
+
+**2. Training on the auto distribution recovers it.** E0-architecture canal graders,
+each selected/reported on the auto distribution with paired cluster-bootstrap CIs:
+
+| variant | auto severe recall [95% CI] | paired Δ vs deployed E0 |
+|---|---|---|
+| deployed E0 (all-cond) | 0.644 | — |
+| oracle-trained control | 0.667 [0.570, 0.754] | +0.023 (n.s.) |
+| level-aware crop jitter | 0.736 [0.634, 0.833] | +0.092 (n.s., p=0.10) |
+| **auto-localized crops** | **0.793 [0.696, 0.881]** | **+0.149 [+0.050, +0.243] (decisive; McNemar p=0.007)** |
+
+Training the grader on auto-localized crops recovers **~81%** of the 0.644→0.828 gap,
+also decisively improves auto weighted log loss (−0.100) and is best on the oracle
+distribution too (0.874). Honest nuance: synthetic jitter helps log-loss and trends on
+severe recall but is **not** decisive; matching the real localizer error (auto-train) is.
+
+**3. Safety Mode (auto).** Robust model recall@FAR≤10% **0.851 [0.766, 0.924]** (vs
+control 0.816); reaches 90% severe recall at FAR 0.153 (vs 0.192) or ~20% review
+burden — tradeoffs reported, not hidden.
+
 ## Runtime (RTX 5080)
 RSNA prep 48,692 crops ≈ 5 min; anatomy priors ≈ 3 min; E0/E1 train ≈ 30–45 min
-each (AMP, early-stopped); E4 inference 0.85 ms/slice. Crops/priors/runs are
-cached, gitignored, and resumable.
+each (AMP, early-stopped); E4 inference 0.85 ms/slice. Canal robust variants ≈ 5–10 min
+each (canal-only, AMP, early-stopped). Crops/priors/runs are cached, gitignored, and
+resumable.
