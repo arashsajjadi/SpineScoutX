@@ -98,13 +98,14 @@ def _viewer_finding(f: dict[str, Any], instability_type: str | None) -> dict[str
 
 
 def _case_category(vfindings: list[dict[str, Any]], summary: dict[str, Any]) -> str:
+    """Single most-salient category. Severe errors first; a clean correct-severe study is
+    ``correct_severe`` even if some finding is unstable (instability categories only when
+    there is no severe error and no severe-correct headline)."""
     corr = [f["correctness"] for f in vfindings]
-    has_rf_hard = any(
+    # the right-foraminal "hard case" is specifically a right-foraminal SEVERE miss
+    has_rf_fn = any(
         f["condition"] == "right_neural_foraminal_narrowing"
-        and (
-            f["correctness"] == "severe_false_negative"
-            or f["evidence_stability_grade"] == "unstable"
-        )
+        and f["correctness"] == "severe_false_negative"
         for f in vfindings
     )
     has_unstable = any(f["evidence_stability_grade"] == "unstable" for f in vfindings)
@@ -117,20 +118,20 @@ def _case_category(vfindings: list[dict[str, Any]], summary: dict[str, Any]) -> 
         )
         for f in vfindings
     )
-    if has_rf_hard:
+    if has_rf_fn:
         return "hard_right_foraminal"
     if "severe_false_negative" in corr:
         return "false_negative"
     if "severe_false_positive" in corr:
         return "false_positive"
-    if has_unstable:
-        return "unstable_review"
+    if "severe_correct" in corr:
+        return "correct_severe"  # ranked above instability: a caught severe is the headline
     if has_disagree:
         return "model_disagreement"
     if has_axial_unc:
         return "axial_uncertain"
-    if "severe_correct" in corr:
-        return "correct_severe"
+    if has_unstable:
+        return "unstable_review"
     if summary["highest_p_severe"] < 0.20 and summary["n_severe_estimates"] == 0:
         return "mostly_normal"
     return "routine"
