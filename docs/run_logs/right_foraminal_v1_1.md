@@ -31,7 +31,7 @@
   which is why stability-aware review (Safety v5) improves right-foraminal severe-FN
   capture at matched review budget (0.72→0.89 @30%).
 
-## Diagnosis (honest)
+## Failure analysis (honest)
 Right-foraminal trails left, but the gap is **sample-size / signal limited**, not tuning
 artifact: most misses are confidently-normal severe cases that per-level thresholding can
 not recover at an acceptable FAR, and the L/R CIs overlap (n_severe≈52–53). We do **not**

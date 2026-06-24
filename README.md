@@ -70,8 +70,8 @@ hidden. **Calibration is a documented negative:** the graders are already well-c
 probabilities. See [`safety_mode_v5.md`](docs/run_logs/safety_mode_v5.md).
 
 ## Where it fails (shown, not hidden)
-Right-foraminal trails left (within CI overlap) — **precisely diagnosed:** 56% of its severe
-misses are *confidently normal* (a signal/sample limit, not threshold-fixable; concentrated
+Right-foraminal trails left (within CI overlap) — **precisely characterized:** 56% of its
+severe misses are *confidently normal* (a signal/sample limit, not threshold-fixable; at
 at L4-L5 right). Severe recall is robust across resolution/matrix size but **weaker at L5-S1
 (0.579) vs L4-L5 (0.868)** ([domain-shift audit](docs/run_logs/external_validation_audit.md));
 the axial level scorer is imperfect (±1 slice-hit 0.43 — the grader tolerates it); severe

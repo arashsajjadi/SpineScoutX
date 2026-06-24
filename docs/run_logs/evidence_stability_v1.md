@@ -51,17 +51,18 @@ AUROC = probability instability ranks a wrong finding above a correct one (0.5 =
 | right_subarticular_stenosis | 30% | 0.667 | 0.667 | 0.750 |
 
 ## Interpretation (honest, no overclaim)
-- **Fidelity:** baseline argmax reproduces the deployed predictions exactly (agreement 1.000
-  per condition); residual sub-1e-3 prob diffs are GPU conv non-determinism.
+- **Fidelity:** baseline argmax reproduces the deployed predictions exactly (agreement
+  1.000 per condition); residual sub-1e-3 prob diffs are GPU conv non-determinism.
 - **Stability is a real signal:** instability predicts a baseline error at pooled AUROC 0.797 and severe-FNs at 0.713 — both well above chance (0.5).
 - **But it is largely redundant with confidence:** pooled `combined` AUROC 0.841 ≈ confidence 0.845; confidence dominates on the strong
   routes. We do **not** claim stability beats confidence in general.
 - **Where it adds triage value:** at a matched 20% review budget, `combined` severe-FN capture exceeds confidence-only on **2/5** routes: right_neural_foraminal_narrowing, right_subarticular_stenosis — notably the weakest **right-side** routes.
-- **Robust-training validation:** robust-trained graders are more stable (canal 75% stable) than the oracle-trained foraminal grader (44% stable, most unstable) — even though the
+- **Robust-training validation:** robust-trained graders are more stable (canal 75%) than the oracle-trained foraminal grader (44% stable, most unstable) — even though the
   foraminal localizer is cleaner. Stability buys robustness; oracle-trained graders are
   perturbation-sensitive.
 - **Use:** stability feeds `route_quality` + the `evidence_unstable` /
-  `axial_candidate_disagreement` / `foraminal_slice_disagreement` review reasons (Safety v5) and the finding-graph schema — an explanatory reliability signal with a measured triage
-  benefit on right-side routes.
+  `axial_candidate_disagreement` / `foraminal_slice_disagreement` review reasons (Safety
+  v5) and the finding-graph schema — an explanatory reliability signal with a measured
+  triage benefit on right-side routes.
 
 Reproduce: `python scripts/run_evidence_stability.py` (smoke: `--max-studies 30`).

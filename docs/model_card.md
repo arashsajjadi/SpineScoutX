@@ -80,7 +80,7 @@ log loss; deterministic seeds. SPIDER uses its official split.
   in-plane resolution/matrix size, mildly sensitive to slice thickness, and weaker at L5-S1
   (0.579) than L4-L5 (0.868); **external/prospective validation not feasible** with available
   legal data (scanner metadata stripped) and **not performed**. **Right-foraminal precisely
-  diagnosed:** 56% of misses are confidently-normal (signal/sample limit, not threshold-
+  characterized:** 56% of misses are confidently-normal (signal/sample limit, not threshold-
   fixable). See `run_logs/evidence_stability_v1.md`, `safety_mode_v5.md`,
   `external_validation_audit.md`, `right_foraminal_v1_1.md`.
 - **v0.16–v1.0 five-finding auto (LOCKED TEST): coverage 3/5 → 5/5.** Subarticular UNLOCKED

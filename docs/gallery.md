@@ -69,7 +69,7 @@ reason; calibration is a documented negative (already well-calibrated → raw pr
 | ![](assets/showcase/case_review_required_card.png) | many borderline findings → `review_required` | the review layer is deliberately conservative (over-flags for safety) |
 | ![](assets/showcase/case_foraminal_right_hard_card.png) | right-foraminal hard case | right-foraminal trails left (within CI overlap) |
 | ![](assets/showcase/case_mostly_normal_card.png) | mostly normal/mild, **0 reviews** | shows the flag is selective, not always-on |
-| ![](assets/showcase/right_foraminal_hard_cases.png) | right-foraminal diagnosis: 56% of misses are confidently-normal | a signal/sample limit, not threshold-fixable; worst at L4-L5 right |
+| ![](assets/showcase/right_foraminal_hard_cases.png) | right-foraminal failure analysis: 56% of misses are confidently-normal | a signal/sample limit, not threshold-fixable; worst at L4-L5 right |
 | ![](assets/showcase/domain_shift.png) | internal domain-shift stress test | weaker at L5-S1 (0.579) vs L4-L5 (0.868); no external validation |
 
 Coverage and oracle-vs-auto context:

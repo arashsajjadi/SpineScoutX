@@ -617,8 +617,8 @@ def _doc(slim):
     lines += [
         "",
         "## Interpretation (honest, no overclaim)",
-        "- **Fidelity:** baseline argmax reproduces the deployed predictions exactly (agreement 1.000",
-        "  per condition); residual sub-1e-3 prob diffs are GPU conv non-determinism.",
+        "- **Fidelity:** baseline argmax reproduces the deployed predictions exactly (agreement",
+        "  1.000 per condition); residual sub-1e-3 prob diffs are GPU conv non-determinism.",
         "- **Stability is a real signal:** instability predicts a baseline error at pooled AUROC "
         f"{pb['auroc_error_from_instability']['point']:.3f} and severe-FNs at "
         f"{(pool.get('severe_fn_detection') or {}).get('auroc_from_instability', float('nan')):.3f}"
@@ -630,14 +630,14 @@ def _doc(slim):
         "- **Where it adds triage value:** at a matched 20% review budget, `combined` severe-FN "
         f"capture exceeds confidence-only on **{len(helps)}/5** routes: "
         f"{', '.join(helps) if helps else 'none'} — notably the weakest **right-side** routes.",
-        "- **Robust-training validation:** robust-trained graders are more stable (canal 75% stable)"
+        "- **Robust-training validation:** robust-trained graders are more stable (canal 75%)"
         " than the oracle-trained foraminal grader (44% stable, most unstable) — even though the",
         "  foraminal localizer is cleaner. Stability buys robustness; oracle-trained graders are",
         "  perturbation-sensitive.",
         "- **Use:** stability feeds `route_quality` + the `evidence_unstable` /",
-        "  `axial_candidate_disagreement` / `foraminal_slice_disagreement` review reasons (Safety v5)"
-        " and the finding-graph schema — an explanatory reliability signal with a measured triage",
-        "  benefit on right-side routes.",
+        "  `axial_candidate_disagreement` / `foraminal_slice_disagreement` review reasons (Safety",
+        "  v5) and the finding-graph schema — an explanatory reliability signal with a measured",
+        "  triage benefit on right-side routes.",
         "",
         "Reproduce: `python scripts/run_evidence_stability.py` (smoke: `--max-studies 30`).",
     ]

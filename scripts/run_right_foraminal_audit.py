@@ -3,7 +3,7 @@
 
 Right-foraminal is the weakest of the 5 auto findings (severe recall ~0.660 vs left
 0.788). A prior right-specialist grader was non-decisive. Rather than train more variants
-blindly, this script DIAGNOSES the limit and tries one bounded, no-retrain refinement:
+blindly, this script CHARACTERIZES the limit and tries one bounded, no-retrain refinement:
 
   1. Left vs right severe recall (overall + recall@FAR), paired bootstrap delta.
   2. Per-level severe recall (which levels carry the right-side deficit?).
@@ -303,7 +303,7 @@ def _doc(out):
         ]
     lines += [
         "",
-        "## Diagnosis (honest)",
+        "## Failure analysis (honest)",
         "Right-foraminal trails left, but the gap is **sample-size / signal limited**, not tuning",
         "artifact: most misses are confidently-normal severe cases that per-level thresholding can",
         "not recover at an acceptable FAR, and the L/R CIs overlap (n_severe≈52–53). We do **not**",
