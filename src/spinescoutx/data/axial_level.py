@@ -259,6 +259,43 @@ def assign_levels_monotonic(log_probs: np.ndarray) -> dict[int, int]:
     return {order[k]: idxs[k] for k in range(5)}
 
 
+def level_position_prior(cache: str | Path) -> dict[int, tuple[float, float]]:
+    """Per-level (mean, std) of normalized z-rank from the TRAIN labelled slices.
+
+    A train-derived positional prior — lumbar levels sit at consistent normalized z
+    (l1/l2 high → l5/s1 low). Used to regularize the decoder. No test data involved.
+    """
+    man = pd.read_parquet(Path(cache) / "axial_level_manifest.parquet")
+    tr = man[man.split == "train"]
+    out: dict[int, tuple[float, float]] = {}
+    for li in range(len(LEVELS)):
+        z = tr[tr.level_idx == li].norm_z.to_numpy()
+        out[li] = (float(z.mean()), float(max(z.std(), 0.05))) if len(z) else (0.5, 0.2)
+    return out
+
+
+def assign_levels_monotonic_prior(
+    log_probs: np.ndarray,
+    norm_zs: np.ndarray,
+    prior: dict[int, tuple[float, float]],
+    *,
+    beta: float = 1.0,
+) -> dict[int, int]:
+    """Monotonic level→slice assignment with a train-derived positional prior (v2 decode).
+
+    Adds ``beta * logN(norm_z_slice; mu_level, sigma_level)`` to the scorer log-prob for each
+    (slice, level) before the same monotonic DP as :func:`assign_levels_monotonic`. The prior
+    pulls each level toward its typical normalized-z position (≈ equal spacing), correcting the
+    residual per-level bias. ``beta=0`` recovers the original decoder.
+    """
+    lp = np.asarray(log_probs, dtype=np.float64).copy()
+    z = np.asarray(norm_zs, dtype=np.float64)
+    for li in range(lp.shape[1]):
+        mu, sig = prior.get(li, (0.5, 0.2))
+        lp[:, li] = lp[:, li] + beta * (-0.5 * ((z - mu) / sig) ** 2 - np.log(sig))
+    return assign_levels_monotonic(lp)
+
+
 def score_and_assign_stack(model, images_dir, study, ax_series, slice_size, device) -> dict | None:
     """Run the scorer over an axial stack and return {level -> (instance, norm_z, conf)}."""
     import cv2
