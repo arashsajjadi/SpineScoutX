@@ -197,6 +197,47 @@ def stability_review_reasons(grade: str, condition: str) -> tuple[str, ...]:
     return ("evidence_unstable", tail)
 
 
+INSTABILITY_TYPES = frozenset(
+    {
+        "stable",
+        "crop_sensitive",  # in-plane crop-centre jitter drives instability
+        "slice_sensitive",  # slice shift drives instability (sagittal routes)
+        "axial_candidate_sensitive",  # slice/level drives it on the axial route
+        "route_sensitive",  # both components contribute (no single cause)
+    }
+)
+
+
+def classify_instability_type(
+    full_inst: float,
+    slice_inst: float,
+    inplane_inst: float,
+    *,
+    route: str,
+    grade: str,
+    min_unstable: float = 0.15,
+    dominant_share: float = 0.60,
+) -> str:
+    """Evidence-intelligence v2: attribute a finding's instability to its cause.
+
+    Uses the instability measured under slice-only vs in-plane-only perturbation. A
+    finding that barely moves (``grade=='stable'`` or low ``full_inst``) is ``stable``;
+    otherwise the dominant component (>= ``dominant_share`` of the two) names the type,
+    with the axial route's slice cause called ``axial_candidate_sensitive``.
+    """
+    if grade == "stable" or full_inst < min_unstable:
+        return "stable"
+    total = slice_inst + inplane_inst
+    if total <= 1e-9:
+        return "route_sensitive"
+    slice_share = slice_inst / total
+    if slice_share >= dominant_share:
+        return "axial_candidate_sensitive" if route == "axial_t2" else "slice_sensitive"
+    if (1.0 - slice_share) >= dominant_share:
+        return "crop_sensitive"
+    return "route_sensitive"
+
+
 def route_quality(grade: str, localizer_confidence: float | None) -> str:
     """Aggregate route-quality signal from stability + localizer/scorer confidence.
 
