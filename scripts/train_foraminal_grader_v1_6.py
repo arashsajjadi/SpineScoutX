@@ -51,7 +51,8 @@ class CropDS(Dataset):
 
     def __getitem__(self, i):
         r = self.df.iloc[i]
-        img = np.load(self.root / str(r["crop_path"])).astype(np.float32)  # (3,224,224)
+        path = r["abs_path"] if "abs_path" in r else str(self.root / r["crop_path"])
+        img = np.load(path).astype(np.float32)  # (3,224,224)
         if self.augment:
             if np.random.rand() < 0.5:
                 img = img[:, :, ::-1].copy()  # horizontal flip (sagittal L<->R ambiguity handled
@@ -68,11 +69,21 @@ class CropDS(Dataset):
         }
 
 
-def _load_frames(data: str):
-    """Return (train_df, dev_df, test_df|None) with a unified 'key' column."""
+def _lss_train_rows():
+    """LSS lss_train rows with absolute crop paths + a unified key (for joint training)."""
+    m = pd.read_parquet(LSS_CACHE / "manifest.parquet")
+    m = m[m.split == "lss_train"].copy()
+    m["abs_path"] = m.crop_path.map(lambda p: str(LSS_CACHE / p))
+    m["key"] = "lss|" + m.patient.astype(str) + "|" + m.index.astype(str)
+    return m[["key", "abs_path", "level_idx", "condition_idx", "severity_index"]]
+
+
+def _load_frames(data: str, extra_lss: bool = False):
+    """Return (train_df, dev_df, test_df|None) with a unified 'key' + 'abs_path' column."""
     if data == "lss":
         m = pd.read_parquet(LSS_CACHE / "manifest.parquet")
         m["key"] = m.patient.astype(str) + "|" + m.index.astype(str)
+        m["abs_path"] = m.crop_path.map(lambda p: str(LSS_CACHE / p))
         return m[m.split == "lss_train"], m[m.split == "lss_dev"], None
     m = pd.read_parquet(RSNA_CACHE / "manifest.parquet")
     m = m[m.condition.isin(FORAMINAL) & m.severity_index.isin([0, 1, 2])].copy()
@@ -80,9 +91,14 @@ def _load_frames(data: str):
     m["condition_idx"] = m.condition.map(CONDITION_TO_INDEX)
     m["level_idx"] = m.level.map(LEVEL_TO_INDEX)
     m["key"] = m.study_id + "|" + m.level.astype(str) + "|" + m.condition
+    m["abs_path"] = m.crop_path.map(lambda p: str(RSNA_CACHE / p))
     sm = load_splits_v1(SPLITS)
     m["spl"] = m.study_id.map(sm)
-    return m[m.spl == "train"], m[m.spl == "dev"], m[m.spl == "test"]
+    tr, dv, te = m[m.spl == "train"], m[m.spl == "dev"], m[m.spl == "test"]
+    if extra_lss:  # joint training: pool LSS lss_train severe-rich crops into RSNA train
+        cols = ["key", "abs_path", "level_idx", "condition_idx", "severity_index"]
+        tr = pd.concat([tr[cols], _lss_train_rows()[cols]], ignore_index=True)
+    return tr, dv, te
 
 
 def _loader(df, cache_root, *, train, severe_over=False):
@@ -142,12 +158,13 @@ def main() -> int:
     ap.add_argument("--freeze-epochs", type=int, default=2)
     ap.add_argument("--lr", type=float, default=3e-4)
     ap.add_argument("--severe-over", action="store_true")
+    ap.add_argument("--extra-lss", action="store_true", help="joint: pool LSS lss_train into RSNA")
     ap.add_argument("--seed", type=int, default=1337)
     args = ap.parse_args()
     seed_everything(args.seed)
     device = select_device("auto")
     cache_root = LSS_CACHE if args.data == "lss" else RSNA_CACHE
-    tr, dv, te = _load_frames(args.data)
+    tr, dv, te = _load_frames(args.data, extra_lss=args.extra_lss)
     print(f"[{args.tag}] data={args.data} train={len(tr)} dev={len(dv)} "
           f"test={0 if te is None else len(te)} (train severe={int((tr.severity_index==2).sum())})",
           flush=True)  # fmt: skip
