@@ -66,6 +66,14 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["E501"]
+"scripts/summarize_experiment_history_v1_9.py" = ["E501"]
+"scripts/create_v1_9_charts.py" = ["E501"]
+"scripts/check_real_image_release_gate_v1_9.py" = ["E501"]
+"scripts/package_best_models_v1_9.py" = ["E501"]
+"scripts/check_release_safety_v1_9.py" = ["E501"]
+"scripts/reproduce_best_metrics_v1_9.py" = ["E501"]
+"scripts/generate_readme_assets_v1_9.py" = ["E501"]
+"scripts/verify_release_assets_v1_9.py" = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
