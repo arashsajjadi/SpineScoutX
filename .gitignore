@@ -53,3 +53,4 @@ env/
 .vscode/
 .DS_Store
 /data/external/
+/review_packs/
