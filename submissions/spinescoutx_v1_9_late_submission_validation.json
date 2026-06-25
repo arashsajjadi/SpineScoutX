@@ -1,0 +1,10 @@
+{
+  "passed": true,
+  "n_rows": 25,
+  "n_expected": 25,
+  "issues": [],
+  "prob_sum_mean": 1.0000000108778477,
+  "prob_sum_std": 3.4248240128495626e-08,
+  "submission_path": "/home/arash/PycharmProjects/SpineScoutX/submissions/spinescoutx_v1_9_late_submission.csv",
+  "n_studies": 1
+}
