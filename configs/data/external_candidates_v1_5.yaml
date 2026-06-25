@@ -1,0 +1,30 @@
+# v1.5 external-data candidates (scout result). Research-only; no data committed/redistributed.
+# Conclusion: RSNA-only supervised training for v1.5 (no new label-compatible legal dataset).
+candidates:
+  rsna_lumbardisc:
+    url: https://pubs.rsna.org/doi/10.1148/ryai.250480
+    access: kaggle + rsna_mira
+    license: non_commercial_research
+    redistributable: false
+    views: [sagittal_t1, sagittal_t2, axial_t2]
+    labels: [spinal_canal, subarticular, neural_foraminal]  # severity per level
+    compatible: true
+    status: already_training_set
+  spider:
+    url: https://zenodo.org/records/10159290
+    access: zenodo + huggingface(cdoswald/SPIDER)
+    license: cc_by_4.0
+    redistributable: true_with_attribution
+    views: [sagittal_t1, sagittal_t2]
+    labels: [vertebra, disc, canal_segmentation]  # NOT the 5 graded findings; no axial subarticular
+    compatible: partial  # anatomy only
+    status: used_for_anatomy; possible_ssl_pretraining
+  mri_core_foundation:
+    url: https://arxiv.org/pdf/2506.12186
+    access: model_weights
+    license: see_paper
+    redistributable: false
+    labels: none  # foundation features
+    compatible: maybe_backbone
+    status: out_of_scope_this_sprint  # download + adapt, not a quick integration
+decision: rsna_only_supervised + candidate_bag_mil  # real capacity lever, no new labels
