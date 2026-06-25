@@ -147,32 +147,45 @@ def main() -> int:
         "splits": {},
     }
     for split in ("dev", "test"):
-        base, mil = {}, {}
+        base = {}
         for cond in cfg["conds"]:
             base.update(baseline_probs(cond, split, run_dir, cache, split_map, device))
         mil = mil_probs(args.route, split, cfg["conds"])
-        out["splits"][split] = _compare_split(base, mil, split)
+        res = _compare_split(base, mil, split)
+        if len(cfg["conds"]) > 1:  # per-condition breakdown (separate baselines per side)
+            res["per_condition"] = {}
+            for cond in cfg["conds"]:
+                bc = {k: v for k, v in base.items() if k.endswith(f"|{cond}")}
+                mc = {k: v for k, v in mil.items() if k.endswith(f"|{cond}")}
+                res["per_condition"][cond] = _compare_split(bc, mc, split)
+        out["splits"][split] = res
     OUTDIR.mkdir(parents=True, exist_ok=True)
     dst = OUTDIR / f"compare_mil_vs_baseline_{args.route}_v1_5.json"
     dst.write_text(json.dumps(out, indent=2, default=float))
-    for split, r in out["splits"].items():
+
+    def _show(r, tag):
         if "error" in r:
-            print(f"[{split}] {r['error']}")
-            continue
+            print(f"{tag} {r['error']}")
+            return
         b, m = r["baseline"], r["mil"]
         ds, dr = r["paired_delta_severe_recall"], r["paired_delta_recall_at_far10"]
         print(
-            f"[{split}] n={r['n_common']} (sev {b['n_severe']}) | "
+            f"{tag} n={r['n_common']} (sev {b['n_severe']}) | "
             f"severe recall base {b['severe_recall']:.3f} -> MIL {m['severe_recall']:.3f} "
             f"(Δ{ds['delta']:+.3f} [{ds['ci_lo']:+.3f},{ds['ci_hi']:+.3f}]"
             f"{' DECISIVE' if ds['decisive'] else ''})"
         )
         print(
-            f"        recall@FAR10 base {b['recall_at_far10']:.3f} -> "
+            f"{' ' * len(tag)} recall@FAR10 base {b['recall_at_far10']:.3f} -> "
             f"MIL {m['recall_at_far10']:.3f} "
             f"(Δ{dr['delta']:+.3f} [{dr['ci_lo']:+.3f},{dr['ci_hi']:+.3f}]"
             f"{' DECISIVE' if dr['decisive'] else ''}) | FAR base {b['far']:.3f} MIL {m['far']:.3f}"
         )
+
+    for split, r in out["splits"].items():
+        _show(r, f"[{split}]")
+        for cond, rc in r.get("per_condition", {}).items():
+            _show(rc, f"  [{split}:{cond.split('_')[0]}]")
     print(f"wrote {dst}")
     return 0
 
