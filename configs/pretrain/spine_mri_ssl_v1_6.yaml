@@ -1,0 +1,16 @@
+# v1.6 Plan B — self-supervised spine-MRI pretraining (SimCLR). Research-only; nothing committed.
+ssl:
+  method: simclr_ntxent
+  backbone: convnext_tiny
+  in_chans: 3
+  proj_dim: 128
+  temperature: 0.2
+  epochs: 40
+  batch: 128
+  lr: 0.001
+  data:
+    source: rsna_foraminal_crops(train+dev) + lss_foraminal_crops   # locked-test EXCLUDED
+    views: sagittal_t1
+    augment: [hflip, resized_crop_0.7-1.0, intensity_gain_bias, gaussian_noise]
+  finetune: train_foraminal_grader_v1_6.py --data rsna --init runs/ssl_foraminal_v1_6/best.pt
+  selection: RSNA dev foraminal-macro recall@FAR10 ; locked-test once
