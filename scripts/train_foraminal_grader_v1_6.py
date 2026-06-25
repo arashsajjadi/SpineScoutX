@@ -159,6 +159,7 @@ def main() -> int:
     ap.add_argument("--lr", type=float, default=3e-4)
     ap.add_argument("--severe-over", action="store_true")
     ap.add_argument("--extra-lss", action="store_true", help="joint: pool LSS lss_train into RSNA")
+    ap.add_argument("--backbone", default="convnext_tiny", help="timm backbone (Plan D capacity)")
     ap.add_argument("--seed", type=int, default=1337)
     args = ap.parse_args()
     seed_everything(args.seed)
@@ -170,7 +171,7 @@ def main() -> int:
           flush=True)  # fmt: skip
 
     model = ImageClassifier(
-        backbone="convnext_tiny", in_chans=3, num_classes=3,
+        backbone=args.backbone, in_chans=3, num_classes=3,
         use_level_embedding=True, use_condition_embedding=True,
         embed_dim=16, dropout=0.2, pretrained=True,
     ).to(device)  # fmt: skip

@@ -53,7 +53,14 @@ def _metrics(y, p, st):
 
 
 def main() -> int:
-    base, lss = _load("rsna_baseline"), _load("rsna_lss")
+    import argparse
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--baseline-tag", default="rsna_baseline")
+    ap.add_argument("--exp-tag", default="rsna_lss")
+    ap.add_argument("--out", default="compare_foraminal_transfer_v1_6.json")
+    args = ap.parse_args()
+    base, lss = _load(args.baseline_tag), _load(args.exp_tag)
     keys = sorted(set(base) & set(lss))
     out = {"protocol": "paired ImageNet-init vs LSS-init RSNA foraminal grader, locked-test once",
            "n_common": len(keys), "per_condition": {}}  # fmt: skip
@@ -85,9 +92,7 @@ def main() -> int:
         "deployed_ref": float(np.mean(list(DEPLOYED_REF.values()))),
     }
     OUTDIR.mkdir(parents=True, exist_ok=True)
-    (OUTDIR / "compare_foraminal_transfer_v1_6.json").write_text(
-        json.dumps(out, indent=2, default=float)
-    )
+    (OUTDIR / args.out).write_text(json.dumps(out, indent=2, default=float))
     for cond, r in out["per_condition"].items():
         b, t = r["baseline"], r["lss"]
         ds, dr = r["paired_delta_severe_recall"], r["paired_delta_recall_at_far10"]
@@ -109,7 +114,7 @@ def main() -> int:
     print(
         f"[macro] severe recall base {m['baseline']:.3f} -> LSS {m['lss']:.3f} (Δ{m['delta']:+.3f})"
     )
-    print(f"wrote {OUTDIR / 'compare_foraminal_transfer_v1_6.json'}")
+    print(f"wrote {OUTDIR / args.out}")
     return 0
 
 
