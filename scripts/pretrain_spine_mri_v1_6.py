@@ -49,20 +49,21 @@ def _crop_paths() -> list[str]:
 def _augment(img: np.ndarray) -> torch.Tensor:
     import cv2
 
-    c, h, w = img.shape
+    _, h, w = img.shape
     if np.random.rand() < 0.5:
-        img = img[:, :, ::-1].copy()
-    # random resized crop (zoom 0.7-1.0)
+        img = img[:, :, ::-1]
+    # random resized crop (zoom 0.7-1.0) — one 3-channel resize via HWC (fast)
     s = np.random.uniform(0.7, 1.0)
     ch, cw = int(h * s), int(w * s)
     y0, x0 = np.random.randint(0, h - ch + 1), np.random.randint(0, w - cw + 1)
-    img = np.stack([cv2.resize(img[k, y0 : y0 + ch, x0 : x0 + cw], (w, h)) for k in range(c)])
+    hwc = np.ascontiguousarray(img[:, y0 : y0 + ch, x0 : x0 + cw].transpose(1, 2, 0))
+    img = cv2.resize(hwc, (w, h), interpolation=cv2.INTER_LINEAR).transpose(2, 0, 1)
     g = 1.0 + np.random.uniform(-0.2, 0.2)
     b = np.random.uniform(-0.1, 0.1)
-    img = np.clip(img * g + b, 0.0, 1.0)
+    img = img * g + b
     if np.random.rand() < 0.5:
-        img = np.clip(img + np.random.normal(0, 0.03, img.shape), 0.0, 1.0)
-    return torch.from_numpy(img.astype(np.float32))
+        img = img + np.random.normal(0, 0.03, img.shape)
+    return torch.from_numpy(np.clip(img, 0.0, 1.0).astype(np.float32))
 
 
 class ContrastiveDS(Dataset):
