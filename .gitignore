@@ -60,3 +60,7 @@ kaggle.json
 *api_*token*
 /data/cache/v1_8b_segmentation/
 /data/cache/v1_8b_morphometry/
+
+# Local-only gallery and reports (never commit)
+/local_reports/
+/data/cache/v1_8c_medsam2_morphometry/
