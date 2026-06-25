@@ -99,3 +99,33 @@ is a held-out research target shown for transparency only.
 Strong, honestly-measured **research** results on one locked test; **not** a validated or
 clinical system. Use it to study anatomy-grounded auto-inference and severe-safety, not to
 make any medical decision.
+
+---
+
+## v1.9 update — convergent findings (v1.4–v1.8c)
+
+The following limitations were confirmed across nine strategies and five release versions:
+
+- **Label quality is the binding ceiling.** v1.4 proved no pipeline bug. v1.5 proved MIL
+  and localization don't transfer to grading. v1.6 proved external data, SSL, anatomy prior,
+  and larger backbone don't help (decisive losses). v1.7 proved label cleaning is rejected
+  by dev (original labels win). v1.8b/v1.8c proved SAM2.1 and real MedSAM2 morphometry are
+  redundant with the image grader. The raw accuracy ceiling (macro 0.752) requires
+  **expert re-annotation**, not further model engineering.
+- **BiGRU localization win does not transfer to grading.** v1.5 BiGRU improved axial ±1-
+  slice-hit from 0.487 → 0.616 (decisive localization win), but re-cropping with improved
+  crops did not improve grading (subarticular test 0.742→0.702). Grading is grader/data-
+  limited, not localization-limited.
+- **Triage improves effective safety but has a ceiling.** v1.7 triage reaches effective
+  foraminal severe recall 0.933 at 15% budget, but captures only 76% of severe FN (22/29);
+  the remaining 24% (7/29) are not surfaced by the deployed uncertainty signals. The deployed
+  grader argmax is unchanged.
+- **Expert re-annotation has not happened yet.** The v1.7 704-case review pack was created
+  (338 right-foraminal + 366 left-foraminal; 87 R-for severe FN) and is awaiting expert
+  radiologist labels. Raw accuracy will not improve until those labels (and ideally a clean
+  test re-read) are available.
+- **Real MedSAM2 is not better than SAM2.1 for this task.** v1.8c proved real MedSAM2
+  morphometry (AUROC 0.551) is weaker than SAM2.1 (AUROC 0.687) and redundant with the
+  image grader. Medical foundation model segmentation is not the missing signal.
+- **v1.9 is a packaging sprint only.** No new accuracy claims. No new locked-test reads.
+  Best raw model remains v1.0 deployed reference (macro 0.752).

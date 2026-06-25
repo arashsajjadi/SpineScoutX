@@ -23,7 +23,9 @@ def _is_repo_private() -> bool:
     try:
         result = subprocess.run(
             ["gh", "repo", "view", "--json", "isPrivate", "--jq", ".isPrivate"],
-            capture_output=True, text=True, timeout=15,
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
         return result.stdout.strip().lower() == "true"
     except Exception:  # noqa: BLE001
@@ -36,7 +38,8 @@ def _check_staged_for_dicom() -> list[str]:
     for pat in ("*.dcm", "*.nii", "*.nii.gz", "*.MRD", "*.mrd"):
         r = subprocess.run(
             ["find", str(ROOT / "docs"), "-name", pat],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         bad += [l for l in r.stdout.splitlines() if l.strip()]
     return bad
@@ -66,9 +69,9 @@ def main(strict: bool = True) -> int:
         "repo_is_private": repo_private,
         "no_dicom_or_nifti_in_docs": len(dicom_found) == 0,
         "no_oversized_panels": len(large_files) == 0,
-        "panels_are_derived_not_raw_series": True,   # enforced by gallery script (small crops)
-        "no_phi_in_filenames": True,                  # enforced by gallery script (hash IDs)
-        "non_commercial_licence_noted": True,         # RSNA CC BY-NC-SA + model cards
+        "panels_are_derived_not_raw_series": True,  # enforced by gallery script (small crops)
+        "no_phi_in_filenames": True,  # enforced by gallery script (hash IDs)
+        "non_commercial_licence_noted": True,  # RSNA CC BY-NC-SA + model cards
     }
     all_pass = all(gates.values())
     gate_result = {
@@ -79,8 +82,8 @@ def main(strict: bool = True) -> int:
         "large_files": large_files,
         "decision": (
             "COMMIT_OK: panels may be committed to the private repo."
-            if all_pass else
-            "LOCAL_ONLY: at least one gate failed — generate gallery locally, "
+            if all_pass
+            else "LOCAL_ONLY: at least one gate failed — generate gallery locally, "
             "commit only placeholder + instructions."
         ),
     }

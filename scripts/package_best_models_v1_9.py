@@ -60,8 +60,11 @@ def _package_raw() -> Path:
         "research_only": True,
         "not_diagnostic": True,
         "locked_test_severe_recall": {
-            "canal": 0.830, "left_foraminal": 0.788, "right_foraminal": 0.660,
-            "left_subarticular": 0.746, "right_subarticular": 0.737,
+            "canal": 0.830,
+            "left_foraminal": 0.788,
+            "right_foraminal": 0.660,
+            "left_subarticular": 0.746,
+            "right_subarticular": 0.737,
             "five_route_macro": 0.752,
         },
         "reproduction_command": "python scripts/reproduce_best_metrics_v1_9.py",

@@ -70,8 +70,10 @@ def _make_panel(
     cid = _case_id(str(row["study_id"]), str(row["level"]), str(row["condition"]))
     level_str = str(row["level"]).replace("_", " ").upper()
     cond_short = (
-        "L-foraminal" if "left_neural" in row["condition"]
-        else "R-foraminal" if "right_neural" in row["condition"]
+        "L-foraminal"
+        if "left_neural" in row["condition"]
+        else "R-foraminal"
+        if "right_neural" in row["condition"]
         else row["condition"].replace("_", " ")
     )
     is_correct = gt == pred_label
@@ -79,8 +81,9 @@ def _make_panel(
     badge_color = "#2a9d5c" if is_correct else ("#e07b39" if status == "review" else "#d64545")
 
     fig = plt.figure(figsize=(5.2, 3.2), dpi=130)
-    gs = gridspec.GridSpec(1, 2, width_ratios=[1.3, 1], wspace=0.3,
-                           left=0.04, right=0.97, top=0.80, bottom=0.10)
+    gs = gridspec.GridSpec(
+        1, 2, width_ratios=[1.3, 1], wspace=0.3, left=0.04, right=0.97, top=0.80, bottom=0.10
+    )
     ax_img = fig.add_subplot(gs[0])
     ax_bar = fig.add_subplot(gs[1])
 
@@ -92,8 +95,9 @@ def _make_panel(
     bar_colors = [SEVERITY_COLOR[i] for i in range(3)]
     bars = ax_bar.barh(classes, prob, color=bar_colors, height=0.55, edgecolor="white")
     for bar, p in zip(bars, prob, strict=False):
-        ax_bar.text(p + 0.02, bar.get_y() + bar.get_height() / 2,
-                    f"{p:.2f}", va="center", fontsize=9)
+        ax_bar.text(
+            p + 0.02, bar.get_y() + bar.get_height() / 2, f"{p:.2f}", va="center", fontsize=9
+        )
     ax_bar.set_xlim(0, 1.25)
     ax_bar.set_xlabel("Probability", fontsize=9)
     ax_bar.spines["top"].set_visible(False)
@@ -105,8 +109,14 @@ def _make_panel(
         f"GT: {SEVERITY_LABEL[gt]}  →  Pred: {SEVERITY_LABEL[pred_label]}  |  {badge}"
     )
     fig.suptitle(title, fontsize=9.5, ha="center", va="top", y=0.98, color=badge_color)
-    fig.text(0.5, 0.01, "Research-only · not diagnostic · RSNA CC BY-NC-SA",
-             ha="center", fontsize=7, color="#aaaaaa")
+    fig.text(
+        0.5,
+        0.01,
+        "Research-only · not diagnostic · RSNA CC BY-NC-SA",
+        ha="center",
+        fontsize=7,
+        color="#aaaaaa",
+    )
 
     outdir.mkdir(parents=True, exist_ok=True)
     p = outdir / panel_name
@@ -191,7 +201,7 @@ def main() -> int:
             if key not in probs_map:
                 continue
             p, pred = probs_map[key]
-            is_fn = (r["severity_index"] == 2 and pred != 2)
+            is_fn = r["severity_index"] == 2 and pred != 2
             if want_fn and not is_fn:
                 continue
             if not want_fn and is_fn and status == "correct":
@@ -240,8 +250,11 @@ def _write_index(outdir: Path, panels: list, gate_ok: bool) -> None:
         else:
             lines.append(f"| `{fname}` | {cond_s} | {level_s} | {gt_s} | {pred_s} |")
     if not gate_ok:
-        lines += ["", "> Local-only gallery — not committed. Regenerate with "
-                  "`python scripts/generate_readme_assets_v1_9.py`."]
+        lines += [
+            "",
+            "> Local-only gallery — not committed. Regenerate with "
+            "`python scripts/generate_readme_assets_v1_9.py`.",
+        ]
     (outdir / "index.md").write_text("\n".join(lines) + "\n")
 
 
