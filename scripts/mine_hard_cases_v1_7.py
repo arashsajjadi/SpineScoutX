@@ -207,6 +207,7 @@ def main() -> int:
         json.dumps(cand, indent=2, default=float)
     )
     review.to_parquet(OUTDIR / "v1_7_review_set.parquet", index=False)
+    sig.to_parquet(OUTDIR / "v1_7_signal_table.parquet", index=False)  # full train+dev (cleaning)
     if TMP.exists():
         TMP.unlink()
     print(json.dumps(summary, indent=2))
