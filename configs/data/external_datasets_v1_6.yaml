@@ -1,0 +1,27 @@
+# v1.6 external datasets (Plan A). Research-only; non-commercial; nothing committed (gitignored).
+datasets:
+  lss_mri_aisslab:
+    title: LSS MRI AISSLab Dataset (Medical Spine Sagittal MRI for Foraminal Stenosis)
+    doi: 10.17632/rgb77xm3jf.4
+    mendeley: https://data.mendeley.com/datasets/rgb77xm3jf/4
+    github: https://github.com/AISSLab2025/LSS-MRI-AISSLab-Dataset
+    paper: https://www.nature.com/articles/s41597-026-07138-x
+    license: CC-BY-4.0
+    use: non_commercial_research
+    redistributable: false        # licence permits, but we keep it gitignored per project policy
+    archive: lss_mri_aisslab_v0.2.zip
+    sha256: 592a294f93d575a16bccc2681c793eb1cfc6679fa2746ac50cbc8970f806b4b1
+    size_bytes: 2035587816
+    view: sagittal                 # rendered PNG + DICOM; foraminal boxes on sagittal slices
+    annotation_format: pascal_voc_xml
+    label_encoding:                # object name = {RFS|LFS}{grade}; <level> = L1-L2..L5-S1
+      RFS: right_neural_foraminal_narrowing
+      LFS: left_neural_foraminal_narrowing
+      grade: {0: normal, 1: mild, 2: moderate, 3: severe}
+    grade_to_rsna_severity_index: {0: 0, 1: 0, 2: 1, 3: 2}   # Normal/Mild->0, Moderate->1, Severe->2
+    counts:                        # from data/cache/lss_foraminal/audit.json
+      boxes: 2978
+      patients: 468
+      severity_index: {0: 2516, 1: 254, 2: 208}   # RSNA-mapped (severe=208: right 93 / left 115)
+    compatible_with: rsna_foraminal_sagittal_t1    # 2.5D crops (3,224,224) in [0,1]; intensity close
+    usage: encoder_pretraining + joint_training (foraminal severe-label augmentation)
