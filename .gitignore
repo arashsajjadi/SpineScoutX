@@ -64,3 +64,8 @@ kaggle.json
 # Local-only gallery and reports (never commit)
 /local_reports/
 /data/cache/v1_8c_medsam2_morphometry/
+
+# Kaggle late submission: large artifacts and competition data (not committed)
+/artifacts/
+/data/kaggle/
+submissions/*.csv

@@ -130,6 +130,21 @@ Weights are **not** in Git history (> 50 MiB → GitHub Release asset only).
 
 ---
 
+## External benchmark (Kaggle late submission attempt)
+
+A late submission attempt was made against the
+**RSNA 2024 Lumbar Spine Degenerative Classification** competition using the
+v1.9 best raw graders. The competition (code-based) closed 2024-10-08 and
+**does not accept new CSV submissions** — Kaggle returned 400 on submission.
+
+No score was obtained. For context, the competition's public leaderboard
+shows a top score of **0.332** (weighted log loss, lower = better) with
+1875 teams. The Kaggle metric is not comparable to our internal severe recall
+metric. See [docs/run_logs/kaggle_leaderboard_comparison.md](docs/run_logs/kaggle_leaderboard_comparison.md)
+for full analysis.
+
+---
+
 ## Reproduce results
 
 ```bash
