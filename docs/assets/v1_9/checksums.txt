@@ -1,0 +1,4 @@
+# SpineScoutX v1.9 release checksums (SHA-256)
+
+452154208c346ea05529cd47f8913c54d22b150c87bd1b1ed1d612bffcedc9ba  spinescoutx-best-raw-v1.9.tar.gz  (495.4 MiB)
+969254b2c881221b5a36bf1529247ab14b1c7d37e75c243cfdd106505a7bba0b  spinescoutx-triage-config-v1.9.tar.gz  (0.0 MiB)
