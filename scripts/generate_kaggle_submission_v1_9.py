@@ -503,7 +503,8 @@ def validate_submission(df: pd.DataFrame, sample: pd.DataFrame) -> dict:
     if bad_sums:
         issues.append(f"Rows where prob sum ≠ 1.0: {bad_sums}")
 
-    if df[["normal_mild", "moderate", "severe"]].isinf().sum().sum():
+    prob_vals = df[["normal_mild", "moderate", "severe"]].to_numpy()
+    if np.isinf(prob_vals).any():
         issues.append("Infinite probability values found")
 
     return {
