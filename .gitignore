@@ -54,3 +54,9 @@ env/
 .DS_Store
 /data/external/
 /review_packs/
+/data/models/
+*.kaggle.json
+kaggle.json
+*api_*token*
+/data/cache/v1_8b_segmentation/
+/data/cache/v1_8b_morphometry/
