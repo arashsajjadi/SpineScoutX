@@ -1,25 +1,41 @@
-"""SpineScoutX v1.9 Late Submission — Kaggle Notebook Script.
+"""SpineScoutX v1.9 Late Submission — Kaggle Notebook Script (OFFLINE v8).
 
 Research-only. Not diagnostic. Not for medical decision-making.
 
-Kaggle environment paths:
-  Competition data:  /kaggle/input/rsna-2024-lumbar-spine-degenerative-classification/
-  Dataset assets:    /kaggle/input/spinescoutx-v1-9-best-raw-model/
+OFFLINE MODE: All assets come from the attached Kaggle dataset.
+No internet access required. All network calls are explicitly disabled.
+
+Kaggle environment paths (script kernels):
+  Competition data:  /kaggle/input/competitions/<slug>/
+  Dataset assets:    /kaggle/input/datasets/arashsajjadi/<slug>/
   Working dir:       /kaggle/working/
 
 Dataset file layout (Kaggle extracts tarballs, double-nesting the root dir):
   spinescoutx-best-raw-v1.9/spinescoutx-best-raw-v1.9/graders/{canal,...}
   spinescoutx-extra-models-v1.9/spinescoutx-extra-models-v1.9/{canal_localizer,axial_scorer}
-  spinescoutx-0.1.0-py3-none-any.whl  (at root)
+  spinescoutx-0.1.0-py3-none-any.whl  (at root of dataset)
 """
 
 from __future__ import annotations
 
 import contextlib
+import os
 import sys
 import tempfile
 import zipfile
 from pathlib import Path
+
+# ---------------------------------------------------------------------------
+# OFFLINE MODE — must be set BEFORE importing any ML library (timm/HF/torch).
+# The three grader configs have pretrained=True but we load from best.pt anyway
+# (pretrained weights are irrelevant and would fail without internet). We patch
+# build_backbone below (after spinescoutx is available) to force pretrained=False.
+# ---------------------------------------------------------------------------
+os.environ["HF_HUB_OFFLINE"] = "1"
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
+os.environ["HF_DATASETS_OFFLINE"] = "1"
+os.environ["TIMM_FUSED_ATTN"] = "0"          # avoid CUDA-only fused ops on CPU fallback
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 import numpy as np
 import pandas as pd
@@ -31,7 +47,9 @@ import pandas as pd
 KAGGLE_INPUT = Path("/kaggle/input")
 KAGGLE_WORKING = Path("/kaggle/working")
 
-# Actual Kaggle paths (script kernel: competition data under competitions/, datasets under datasets/)
+# Actual Kaggle paths for script kernels:
+#   competition data → /kaggle/input/competitions/<slug>/
+#   dataset data     → /kaggle/input/datasets/<user>/<slug>/
 RSNA_ROOT = KAGGLE_INPUT / "competitions" / "rsna-2024-lumbar-spine-degenerative-classification"
 MODEL_ASSET = KAGGLE_INPUT / "datasets" / "arashsajjadi" / "spinescoutx-v1-9-best-raw-model"
 
@@ -69,8 +87,10 @@ SUBARTICULAR_COND = {
 # Step 1 — Diagnose and install spinescoutx
 # ---------------------------------------------------------------------------
 
-print("=== Step 1: Diagnose environment and install SpineScoutX ===")
+print("=== Step 1: Diagnose environment and install SpineScoutX (OFFLINE) ===")
 print(f"Python: {sys.version}")
+print(f"HF_HUB_OFFLINE={os.environ.get('HF_HUB_OFFLINE')} "
+      f"TRANSFORMERS_OFFLINE={os.environ.get('TRANSFORMERS_OFFLINE')}")
 
 print(f"\nDataset dir ({MODEL_ASSET}):")
 if MODEL_ASSET.exists():
@@ -82,7 +102,7 @@ else:
 print(f"\nCompetition dir ({RSNA_ROOT}):")
 print(f"  exists: {RSNA_ROOT.exists()}")
 
-# Install spinescoutx from the bundled wheel using zipfile (no pip needed).
+# Install spinescoutx from the bundled wheel using zipfile (no pip, no internet).
 # The .whl format is a ZIP; extracting it gives the package at the root.
 pkgs_dir = KAGGLE_WORKING / "pkgs"
 pkgs_dir.mkdir(exist_ok=True)
@@ -94,15 +114,8 @@ if WHEEL.exists():
     sys.path.insert(0, str(pkgs_dir))
     print(f"spinescoutx extracted to {pkgs_dir}")
 else:
-    print(f"\nWARNING: wheel not found at {WHEEL}")
-    print("Trying pip install as fallback ...")
-    import subprocess
-    result = subprocess.run(
-        [sys.executable, "-m", "pip", "install", "--quiet", str(WHEEL), "--no-deps"],
-        capture_output=True, text=True,
-    )
-    print(result.stdout or "(no stdout)")
-    print(result.stderr or "(no stderr)")
+    print(f"\nFATAL: wheel not found at {WHEEL}")
+    sys.exit(1)
 
 try:
     import spinescoutx
@@ -110,6 +123,26 @@ try:
 except ImportError as e:
     print(f"FATAL: cannot import spinescoutx: {e}")
     sys.exit(1)
+
+# ---------------------------------------------------------------------------
+# OFFLINE PATCH: force pretrained=False in build_backbone.
+# All three grader configs have pretrained=True (timm convnext_tiny ImageNet init)
+# but collect_probs immediately overwrites with fine-tuned weights from best.pt.
+# Downloading the pretrained weights would require internet; we skip the download
+# since the weights are discarded anyway.
+# ---------------------------------------------------------------------------
+import spinescoutx.models.image_classifier as _ic  # noqa: E402
+
+_orig_build_backbone = _ic.build_backbone
+
+
+def _offline_build_backbone(name: str, in_chans: int, pretrained: bool):
+    """Always build backbone with pretrained=False (offline-safe)."""
+    return _orig_build_backbone(name, in_chans, False)
+
+
+_ic.build_backbone = _offline_build_backbone
+print("\nbuild_backbone patched: pretrained=False forced (offline mode).")
 
 # ---------------------------------------------------------------------------
 # Step 2 — Verify model paths and competition data
@@ -120,7 +153,6 @@ for run_name, path in RUN_MAP.items():
     has_pt = (path / "best.pt").exists()
     print(f"  {'OK' if has_pt else 'MISS'}: {run_name}")
     if not has_pt:
-        # Try to debug: list parent
         print(f"    path={path}")
         if path.parent.exists():
             print(f"    parent contents: {[p.name for p in path.parent.iterdir()][:10]}")
