@@ -130,17 +130,31 @@ Weights are **not** in Git history (> 50 MiB → GitHub Release asset only).
 
 ---
 
-## External benchmark (Kaggle late submission attempt)
+## External benchmark (Kaggle late submission attempts)
 
-A late submission attempt was made against the
+Two late submission attempts were made against the
 **RSNA 2024 Lumbar Spine Degenerative Classification** competition using the
-v1.9 best raw graders. The competition (code-based) closed 2024-10-08 and
-**does not accept new CSV submissions** — Kaggle returned 400 on submission.
+v1.9 best raw graders.
 
-No score was obtained. For context, the competition's public leaderboard
-shows a top score of **0.332** (weighted log loss, lower = better) with
-1875 teams. The Kaggle metric is not comparable to our internal severe recall
-metric. See [docs/run_logs/kaggle_leaderboard_comparison.md](docs/run_logs/kaggle_leaderboard_comparison.md)
+**v1.9.1 (CSV upload):** Returned HTTP 400 — the competition is code-only and
+does not accept plain CSV uploads after closing.
+
+**v1.9.2 (Kaggle Notebook kernel):** Built a full inference kernel
+(`arashsajjadi/spinescoutx-v1-9-late-submission`, v7) that ran the complete
+5-route pipeline end-to-end on Kaggle infrastructure (CPU fallback; Tesla P100
+CUDA 6.0 is incompatible with PyTorch 2.x ≥7.0). The kernel completed
+successfully, producing a passing 25-row `submission.csv` (validation passed,
+prob sums = 1.000). The code-kernel submission also returned HTTP 400 —
+the competition API rejects all new submissions regardless of method after the
+October 2024 close date.
+
+**No official score was obtained.** For context, the competition's public
+leaderboard shows a top score of **0.332** (weighted log loss, lower = better)
+with 1875 teams. The Kaggle metric is not comparable to our internal severe
+recall metric. See
+[docs/run_logs/kaggle_leaderboard_comparison.md](docs/run_logs/kaggle_leaderboard_comparison.md)
+and
+[docs/run_logs/kaggle_notebook_late_submission_result_v1_9_2.md](docs/run_logs/kaggle_notebook_late_submission_result_v1_9_2.md)
 for full analysis.
 
 ---
