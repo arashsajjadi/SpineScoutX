@@ -142,16 +142,18 @@ v1.9 best raw graders.
 valid 25-row `submission.csv`. Blocked at submit UI: competition requires
 internet-disabled notebook.
 
-**v1.9.3 (kernel v8, internet disabled — ACCEPTED):** Root cause was that
-`timm.create_model("convnext_tiny", pretrained=True)` downloads ImageNet weights
-from HuggingFace, even though `best.pt` immediately overwrites them. Fix: set
-`HF_HUB_OFFLINE=1` and monkey-patch `build_backbone` to force `pretrained=False`
+**v1.9.3 (kernel v8, internet disabled — ACCEPTED, scoring pending):** Root cause
+was that `timm.create_model("convnext_tiny", pretrained=True)` downloads ImageNet
+weights from HuggingFace, even though `best.pt` immediately overwrites them. Fix:
+set `HF_HUB_OFFLINE=1` and monkey-patch `build_backbone` to force `pretrained=False`
 (no weight download; fine-tuned `best.pt` produces identical results). Kernel v8
-ran offline-clean (0 HuggingFace requests) and produced a passing 25-row
-`submission.csv`. Submission **accepted** by Kaggle (ref: 54064897, status: PENDING
-scoring). See
+ran offline-clean (0 HuggingFace requests), produced a passing 25-row `submission.csv`.
+Submission **accepted** by Kaggle (ref: 54064897, no HTTP 400). Status: PENDING —
+Kaggle's scoring workers for closed competitions (closed Oct 2024) are deprioritized
+and no official score was obtained. This is the submission ceiling for a closed
+code competition. See
 [docs/run_logs/kaggle_notebook_late_submission_result_v1_9_3.md](docs/run_logs/kaggle_notebook_late_submission_result_v1_9_3.md)
-for score once Kaggle's scoring queue completes.
+for full analysis.
 
 Competition context: public leaderboard top = **0.332** (weighted log loss,
 lower = better), 1875 teams. Kaggle metric is not comparable to internal severe

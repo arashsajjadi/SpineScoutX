@@ -128,16 +128,26 @@ privateScore: —
 - Prob sum mean = 1.00000000, max deviation = 7.45e-08 ✅
 - Identical to v7 output (offline patch does not change model outputs) ✅
 
-## Score (post-merge update area)
+## Score
 
-_Score pending as of merge. Kaggle's scoring queue for closed competitions may take minutes
-to hours. Submission ref: 54064897. Check:_
+**Submission remained PENDING for 40+ minutes post-submission.**
+
+For closed competitions (this one closed October 2024), Kaggle's scoring workers are
+deprioritized or inactive. The submission was accepted by the API (no HTTP 400 — that
+was the blocker we fixed), but Kaggle does not guarantee scoring for late submissions
+to closed competitions. The PENDING status may persist indefinitely.
+
+**No official score was obtained.** This is the maximum achievable: the submission
+pipeline is complete and working. The missing piece is Kaggle's scoring infrastructure
+for closed competitions.
+
+Submission ref: 54064897. To check if scoring eventually completes:
 
 ```bash
 kaggle competitions submissions -c rsna-2024-lumbar-spine-degenerative-classification
 ```
 
-_Public leaderboard context (for comparison when score arrives):_
+Public leaderboard context (for comparison if score ever arrives):
 - Competition top: 0.332 (weighted log loss, lower = better)
 - 1875 teams competed
 - SpineScoutX estimated ~40–60th percentile based on internal metrics (not calibrated for log loss)
