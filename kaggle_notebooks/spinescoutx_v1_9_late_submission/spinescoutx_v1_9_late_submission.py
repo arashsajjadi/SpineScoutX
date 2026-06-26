@@ -5,13 +5,12 @@ Research-only. Not diagnostic. Not for medical decision-making.
 Kaggle environment paths:
   Competition data:  /kaggle/input/rsna-2024-lumbar-spine-degenerative-classification/
   Dataset assets:    /kaggle/input/spinescoutx-v1-9-best-raw-model/
-  Script working dir: /kaggle/src/   (spinescoutx/ package is co-located here)
-  Output dir:        /kaggle/working/
+  Working dir:       /kaggle/working/
 
 Dataset file layout (Kaggle extracts tarballs, double-nesting the root dir):
-  spinescoutx-best-raw-v1.9/spinescoutx-best-raw-v1.9/graders/{canal,left_foraminal,...}
+  spinescoutx-best-raw-v1.9/spinescoutx-best-raw-v1.9/graders/{canal,...}
   spinescoutx-extra-models-v1.9/spinescoutx-extra-models-v1.9/{canal_localizer,axial_scorer}
-  spinescoutx-0.1.0-py3-none-any.whl  (at root — not used; package is bundled in kernel)
+  spinescoutx-0.1.0-py3-none-any.whl  (at root)
 """
 
 from __future__ import annotations
@@ -19,13 +18,11 @@ from __future__ import annotations
 import contextlib
 import sys
 import tempfile
+import zipfile
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-
-# spinescoutx/ is bundled alongside this script in /kaggle/src/
-# /kaggle/src/ is already on sys.path in the Kaggle environment.
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -36,9 +33,11 @@ KAGGLE_WORKING = Path("/kaggle/working")
 RSNA_ROOT = KAGGLE_INPUT / "rsna-2024-lumbar-spine-degenerative-classification"
 MODEL_ASSET = KAGGLE_INPUT / "spinescoutx-v1-9-best-raw-model"
 
-# Kaggle extracts tarballs and wraps contents under a directory named after the archive.
-# Archive spinescoutx-best-raw-v1.9.tar.gz already contains spinescoutx-best-raw-v1.9/ inside,
-# so Kaggle mounts it at: <dataset>/spinescoutx-best-raw-v1.9/spinescoutx-best-raw-v1.9/
+WHEEL = MODEL_ASSET / "spinescoutx-0.1.0-py3-none-any.whl"
+
+# Kaggle extracts tarballs and wraps under a dir named after the archive.
+# Archive spinescoutx-best-raw-v1.9.tar.gz contains spinescoutx-best-raw-v1.9/ inside,
+# so Kaggle mounts at: <dataset>/spinescoutx-best-raw-v1.9/spinescoutx-best-raw-v1.9/
 MAIN_MODELS = MODEL_ASSET / "spinescoutx-best-raw-v1.9" / "spinescoutx-best-raw-v1.9"
 EXTRA_MODELS = MODEL_ASSET / "spinescoutx-extra-models-v1.9" / "spinescoutx-extra-models-v1.9"
 
@@ -53,13 +52,6 @@ RUN_MAP = {
 
 OUTPUT_CSV = KAGGLE_WORKING / "submission.csv"
 
-CONDITIONS = [
-    "spinal_canal_stenosis",
-    "left_neural_foraminal_narrowing",
-    "right_neural_foraminal_narrowing",
-    "left_subarticular_stenosis",
-    "right_subarticular_stenosis",
-]
 LEVELS = ("l1_l2", "l2_l3", "l3_l4", "l4_l5", "l5_s1")
 UNIFORM = np.array([1 / 3, 1 / 3, 1 / 3], dtype=np.float64)
 FORAMINAL_COND = {
@@ -72,35 +64,73 @@ SUBARTICULAR_COND = {
 }
 
 # ---------------------------------------------------------------------------
-# Step 1 — Verify environment
+# Step 1 — Diagnose and install spinescoutx
 # ---------------------------------------------------------------------------
 
-print("=== Step 1: Verify environment ===")
+print("=== Step 1: Diagnose environment and install SpineScoutX ===")
 print(f"Python: {sys.version}")
-print(f"sys.path[0]: {sys.path[0]}")
 
-import spinescoutx  # noqa: E402 (spinescoutx/ is bundled in /kaggle/src/)
+print(f"\nContents of {MODEL_ASSET}:")
+if MODEL_ASSET.exists():
+    for p in sorted(MODEL_ASSET.iterdir()):
+        print(f"  {'DIR' if p.is_dir() else 'FILE'}: {p.name}")
+else:
+    print("  MISSING!")
 
-print(f"spinescoutx loaded from: {spinescoutx.__file__}")
+# Install spinescoutx from the bundled wheel using zipfile (no pip needed).
+# The .whl format is a ZIP; extracting it gives the package at the root.
+pkgs_dir = KAGGLE_WORKING / "pkgs"
+pkgs_dir.mkdir(exist_ok=True)
 
-# Verify model dirs exist
+if WHEEL.exists():
+    print(f"\nExtracting wheel from {WHEEL} ...")
+    with zipfile.ZipFile(WHEEL) as zf:
+        zf.extractall(pkgs_dir)
+    sys.path.insert(0, str(pkgs_dir))
+    print(f"spinescoutx extracted to {pkgs_dir}")
+else:
+    print(f"\nWARNING: wheel not found at {WHEEL}")
+    print("Trying pip install as fallback ...")
+    import subprocess
+    result = subprocess.run(
+        [sys.executable, "-m", "pip", "install", "--quiet", str(WHEEL), "--no-deps"],
+        capture_output=True, text=True,
+    )
+    print(result.stdout or "(no stdout)")
+    print(result.stderr or "(no stderr)")
+
+try:
+    import spinescoutx
+    print(f"spinescoutx loaded from: {spinescoutx.__file__}")
+except ImportError as e:
+    print(f"FATAL: cannot import spinescoutx: {e}")
+    sys.exit(1)
+
+# ---------------------------------------------------------------------------
+# Step 2 — Verify model paths and competition data
+# ---------------------------------------------------------------------------
+
+print("\n=== Step 2: Verify model paths ===")
 for run_name, path in RUN_MAP.items():
-    status = "OK" if path.exists() else "MISSING"
-    print(f"  {status}: {run_name} → {path}")
+    has_pt = (path / "best.pt").exists()
+    print(f"  {'OK' if has_pt else 'MISS'}: {run_name}")
+    if not has_pt:
+        # Try to debug: list parent
+        print(f"    path={path}")
+        if path.parent.exists():
+            print(f"    parent contents: {[p.name for p in path.parent.iterdir()][:10]}")
 
-# Verify competition data
 test_images = RSNA_ROOT / "test_images"
 sample_sub_path = RSNA_ROOT / "sample_submission.csv"
 series_csv_path = RSNA_ROOT / "test_series_descriptions.csv"
 for p in [test_images, sample_sub_path, series_csv_path]:
-    status = "OK" if p.exists() else "MISSING"
-    print(f"  {status}: {p.name}")
+    print(f"  {'OK' if p.exists() else 'MISS'}: {p.name}")
 
 # ---------------------------------------------------------------------------
-# Step 2 — Imports
+# Step 3 — Imports
 # ---------------------------------------------------------------------------
 
-print("\n=== Step 2: Import SpineScoutX modules ===")
+print("\n=== Step 3: Import SpineScoutX modules ===")
 
 from spinescoutx.data.auto_localize import load_localizer, localize_study  # noqa: E402
 from spinescoutx.data.axial_level import (  # noqa: E402
@@ -127,7 +157,7 @@ print(f"Device: {device}")
 print("All imports OK.")
 
 # ---------------------------------------------------------------------------
-# Step 3 — Inference helpers
+# Step 4 — Inference helpers
 # ---------------------------------------------------------------------------
 
 
@@ -344,10 +374,10 @@ def assemble_submission(study, canal_probs, foraminal_probs, sub_probs, sample_d
 
 
 # ---------------------------------------------------------------------------
-# Step 4 — Run inference
+# Step 5 — Run inference
 # ---------------------------------------------------------------------------
 
-print("\n=== Step 4: Run inference ===")
+print("\n=== Step 5: Run inference ===")
 
 series_index = _build_series_index()
 print(f"Series index:\n{series_index.to_string(index=False)}")
@@ -381,10 +411,10 @@ submission.to_csv(OUTPUT_CSV, index=False)
 print(f"\n[output] {OUTPUT_CSV} ({len(submission)} rows)")
 
 # ---------------------------------------------------------------------------
-# Step 5 — Validate
+# Step 6 — Validate
 # ---------------------------------------------------------------------------
 
-print("\n=== Step 5: Validate submission ===")
+print("\n=== Step 6: Validate submission ===")
 sums = submission[["normal_mild", "moderate", "severe"]].sum(axis=1)
 nan_count = submission[["normal_mild", "moderate", "severe"]].isna().sum().sum()
 dup_count = submission["row_id"].duplicated().sum()
