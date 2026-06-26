@@ -30,8 +30,10 @@ import pandas as pd
 
 KAGGLE_INPUT = Path("/kaggle/input")
 KAGGLE_WORKING = Path("/kaggle/working")
-RSNA_ROOT = KAGGLE_INPUT / "rsna-2024-lumbar-spine-degenerative-classification"
-MODEL_ASSET = KAGGLE_INPUT / "spinescoutx-v1-9-best-raw-model"
+
+# Actual Kaggle paths (script kernel: competition data under competitions/, datasets under datasets/)
+RSNA_ROOT = KAGGLE_INPUT / "competitions" / "rsna-2024-lumbar-spine-degenerative-classification"
+MODEL_ASSET = KAGGLE_INPUT / "datasets" / "arashsajjadi" / "spinescoutx-v1-9-best-raw-model"
 
 WHEEL = MODEL_ASSET / "spinescoutx-0.1.0-py3-none-any.whl"
 
@@ -70,19 +72,15 @@ SUBARTICULAR_COND = {
 print("=== Step 1: Diagnose environment and install SpineScoutX ===")
 print(f"Python: {sys.version}")
 
-print(f"\nContents of {KAGGLE_INPUT}:")
-if KAGGLE_INPUT.exists():
-    for p in sorted(KAGGLE_INPUT.iterdir()):
-        print(f"  {'DIR' if p.is_dir() else 'FILE'}: {p.name}")
-else:
-    print(f"  {KAGGLE_INPUT} MISSING!")
-
-print(f"\nContents of {MODEL_ASSET}:")
+print(f"\nDataset dir ({MODEL_ASSET}):")
 if MODEL_ASSET.exists():
     for p in sorted(MODEL_ASSET.iterdir()):
         print(f"  {'DIR' if p.is_dir() else 'FILE'}: {p.name}")
 else:
     print("  MISSING!")
+
+print(f"\nCompetition dir ({RSNA_ROOT}):")
+print(f"  exists: {RSNA_ROOT.exists()}")
 
 # Install spinescoutx from the bundled wheel using zipfile (no pip needed).
 # The .whl format is a ZIP; extracting it gives the package at the root.

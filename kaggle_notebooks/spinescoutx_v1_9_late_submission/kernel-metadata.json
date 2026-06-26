@@ -9,7 +9,7 @@
   "enable_tpu": false,
   "enable_internet": true,
   "dataset_sources": [
-    "arashsajjadi/spinescoutx-v1-9-best-raw-model/versions/2"
+    "arashsajjadi/spinescoutx-v1-9-best-raw-model"
   ],
   "competition_sources": [
     "rsna-2024-lumbar-spine-degenerative-classification"
