@@ -157,7 +157,19 @@ from spinescoutx.data.rsna_index import classify_sequence  # noqa: E402
 from spinescoutx.evaluation.gap_decomposition import collect_probs  # noqa: E402
 from spinescoutx.training.optim import select_device  # noqa: E402
 
+import torch as _torch
+
 device = select_device("auto")
+# Kaggle may assign P100 (CUDA cap 6.0); PyTorch 2.x requires cap >= 7.0 — fall back to CPU.
+if device.type == "cuda":
+    try:
+        props = _torch.cuda.get_device_properties(0)
+        if props.major < 7:
+            print(f"GPU {props.name} CUDA {props.major}.{props.minor} < 7.0 — falling back to CPU")
+            device = _torch.device("cpu")
+    except Exception:
+        device = _torch.device("cpu")
+
 print(f"Device: {device}")
 print("All imports OK.")
 
