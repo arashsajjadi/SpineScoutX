@@ -69,3 +69,4 @@ kaggle.json
 /artifacts/
 /data/kaggle/
 submissions/*.csv
+kaggle_notebooks/*/spinescoutx/

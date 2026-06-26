@@ -2,24 +2,30 @@
 
 Research-only. Not diagnostic. Not for medical decision-making.
 
-Kaggle environment:
+Kaggle environment paths:
   Competition data:  /kaggle/input/rsna-2024-lumbar-spine-degenerative-classification/
   Dataset assets:    /kaggle/input/spinescoutx-v1-9-best-raw-model/
-  Working dir:       /kaggle/working/
+  Script working dir: /kaggle/src/   (spinescoutx/ package is co-located here)
+  Output dir:        /kaggle/working/
+
+Dataset file layout (Kaggle extracts tarballs, double-nesting the root dir):
+  spinescoutx-best-raw-v1.9/spinescoutx-best-raw-v1.9/graders/{canal,left_foraminal,...}
+  spinescoutx-extra-models-v1.9/spinescoutx-extra-models-v1.9/{canal_localizer,axial_scorer}
+  spinescoutx-0.1.0-py3-none-any.whl  (at root — not used; package is bundled in kernel)
 """
 
 from __future__ import annotations
 
 import contextlib
-import os
-import subprocess
 import sys
-import tarfile
 import tempfile
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+# spinescoutx/ is bundled alongside this script in /kaggle/src/
+# /kaggle/src/ is already on sys.path in the Kaggle environment.
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -30,12 +36,21 @@ KAGGLE_WORKING = Path("/kaggle/working")
 RSNA_ROOT = KAGGLE_INPUT / "rsna-2024-lumbar-spine-degenerative-classification"
 MODEL_ASSET = KAGGLE_INPUT / "spinescoutx-v1-9-best-raw-model"
 
-MAIN_TARBALL = MODEL_ASSET / "spinescoutx-best-raw-v1.9.tar.gz"
-EXTRA_TARBALL = MODEL_ASSET / "spinescoutx-extra-models-v1.9.tar.gz"
-WHEEL = MODEL_ASSET / "spinescoutx-0.1.0-py3-none-any.whl"
+# Kaggle extracts tarballs and wraps contents under a directory named after the archive.
+# Archive spinescoutx-best-raw-v1.9.tar.gz already contains spinescoutx-best-raw-v1.9/ inside,
+# so Kaggle mounts it at: <dataset>/spinescoutx-best-raw-v1.9/spinescoutx-best-raw-v1.9/
+MAIN_MODELS = MODEL_ASSET / "spinescoutx-best-raw-v1.9" / "spinescoutx-best-raw-v1.9"
+EXTRA_MODELS = MODEL_ASSET / "spinescoutx-extra-models-v1.9" / "spinescoutx-extra-models-v1.9"
 
-MODELS_DIR = KAGGLE_WORKING / "models"
-RUNS_DIR = KAGGLE_WORKING / "runs"
+RUN_MAP = {
+    "v1_canal_auto_robust":        MAIN_MODELS / "graders" / "canal",
+    "v1_foraminal_oracle_ctrl":    MAIN_MODELS / "graders" / "left_foraminal",
+    "v1_subarticular_auto_robust": MAIN_MODELS / "graders" / "left_subarticular",
+    "lf_foraminal_localizer":      MAIN_MODELS / "graders" / "localizer",
+    "l0_disc_localizer_real":      EXTRA_MODELS / "canal_localizer",
+    "axial_level_scorer":          EXTRA_MODELS / "axial_scorer",
+}
+
 OUTPUT_CSV = KAGGLE_WORKING / "submission.csv"
 
 CONDITIONS = [
@@ -57,110 +72,63 @@ SUBARTICULAR_COND = {
 }
 
 # ---------------------------------------------------------------------------
-# Step 1 — Install SpineScoutX wheel
+# Step 1 — Verify environment
 # ---------------------------------------------------------------------------
 
-print("=== Step 1: Install SpineScoutX wheel ===")
-subprocess.check_call([
-    sys.executable, "-m", "pip", "install", "--quiet", str(WHEEL),
-    "--no-deps",
-])
-print("Wheel installed.")
+print("=== Step 1: Verify environment ===")
+print(f"Python: {sys.version}")
+print(f"sys.path[0]: {sys.path[0]}")
 
-# ---------------------------------------------------------------------------
-# Step 2 — Extract model tarballs
-# ---------------------------------------------------------------------------
+import spinescoutx  # noqa: E402 (spinescoutx/ is bundled in /kaggle/src/)
 
-print("\n=== Step 2: Extract model tarballs ===")
-MODELS_DIR.mkdir(parents=True, exist_ok=True)
+print(f"spinescoutx loaded from: {spinescoutx.__file__}")
 
-print(f"Extracting {MAIN_TARBALL.name} ...")
-with tarfile.open(MAIN_TARBALL) as tf:
-    tf.extractall(MODELS_DIR)
+# Verify model dirs exist
+for run_name, path in RUN_MAP.items():
+    status = "OK" if path.exists() else "MISSING"
+    print(f"  {status}: {run_name} → {path}")
 
-print(f"Extracting {EXTRA_TARBALL.name} ...")
-with tarfile.open(EXTRA_TARBALL) as tf:
-    tf.extractall(MODELS_DIR)
-
-main_root = MODELS_DIR / "spinescoutx-best-raw-v1.9"
-extra_root = MODELS_DIR / "spinescoutx-extra-models-v1.9"
-for p in [main_root, extra_root]:
-    if not p.exists():
-        raise RuntimeError(f"Expected extraction dir missing: {p}")
-print("Extraction complete.")
-
-# ---------------------------------------------------------------------------
-# Step 3 — Create expected run directory structure via symlinks
-# ---------------------------------------------------------------------------
-
-print("\n=== Step 3: Create run directory symlinks ===")
-
-# tarball graders/localizer/ config.json has name="lf_foraminal_localizer"
-# tarball graders/canal/ has the canal grader
-RUN_MAP = {
-    "v1_canal_auto_robust":       main_root / "graders" / "canal",
-    "v1_foraminal_oracle_ctrl":   main_root / "graders" / "left_foraminal",
-    "v1_subarticular_auto_robust": main_root / "graders" / "left_subarticular",
-    "lf_foraminal_localizer":     main_root / "graders" / "localizer",
-    "l0_disc_localizer_real":     extra_root / "canal_localizer",
-    "axial_level_scorer":         extra_root / "axial_scorer",
-}
-
-RUNS_DIR.mkdir(parents=True, exist_ok=True)
-for run_name, src in RUN_MAP.items():
-    dst = RUNS_DIR / run_name
-    if dst.is_symlink():
-        dst.unlink()
-    elif dst.exists():
-        import shutil
-        shutil.rmtree(dst)
-    os.symlink(src.resolve(), dst)
-    print(f"  {run_name} → {src.relative_to(MODELS_DIR)}")
-
-print("Run directory structure ready.")
-
-# ---------------------------------------------------------------------------
-# Step 4 — Verify competition data
-# ---------------------------------------------------------------------------
-
-print("\n=== Step 4: Verify competition data ===")
+# Verify competition data
 test_images = RSNA_ROOT / "test_images"
 sample_sub_path = RSNA_ROOT / "sample_submission.csv"
 series_csv_path = RSNA_ROOT / "test_series_descriptions.csv"
-
 for p in [test_images, sample_sub_path, series_csv_path]:
-    if not p.exists():
-        raise RuntimeError(f"Missing competition file: {p}")
-    print(f"  found: {p.name}")
+    status = "OK" if p.exists() else "MISSING"
+    print(f"  {status}: {p.name}")
 
 # ---------------------------------------------------------------------------
-# Step 5 — SpineScoutX inference
+# Step 2 — Imports
 # ---------------------------------------------------------------------------
 
-print("\n=== Step 5: Run SpineScoutX inference ===")
+print("\n=== Step 2: Import SpineScoutX modules ===")
 
-from spinescoutx.data.auto_localize import load_localizer, localize_study
-from spinescoutx.data.axial_level import (
+from spinescoutx.data.auto_localize import load_localizer, localize_study  # noqa: E402
+from spinescoutx.data.axial_level import (  # noqa: E402
     SUBARTICULAR_OFFSETS as _SUB_OFF,
     load_axial_level_scorer,
     score_and_assign_stack,
 )
-from spinescoutx.data.axial_match import pick_axial_t2
-from spinescoutx.data.crops import CropRecord, extract_25d, write_manifest
-from spinescoutx.data.dicom_io import normalize_intensity, read_dicom
-from spinescoutx.data.foraminal_localize import (
+from spinescoutx.data.axial_match import pick_axial_t2  # noqa: E402
+from spinescoutx.data.crops import CropRecord, extract_25d, write_manifest  # noqa: E402
+from spinescoutx.data.dicom_io import normalize_intensity, read_dicom  # noqa: E402
+from spinescoutx.data.foraminal_localize import (  # noqa: E402
     _load_foraminal_localizer,
     _localize_slice,
     pick_sagittal_t1,
     side_candidate_instances,
     slices_by_lr,
 )
-from spinescoutx.data.rsna_index import classify_sequence
-from spinescoutx.evaluation.gap_decomposition import collect_probs
-from spinescoutx.training.optim import select_device
+from spinescoutx.data.rsna_index import classify_sequence  # noqa: E402
+from spinescoutx.evaluation.gap_decomposition import collect_probs  # noqa: E402
+from spinescoutx.training.optim import select_device  # noqa: E402
 
 device = select_device("auto")
 print(f"Device: {device}")
+print("All imports OK.")
+
+# ---------------------------------------------------------------------------
+# Step 3 — Inference helpers
+# ---------------------------------------------------------------------------
 
 
 def _make_crop(study, series_id, inst, condition, level, side, x, y, rel, seq):
@@ -200,10 +168,7 @@ def infer_canal(study, series_index, tmp_cache):
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "crops").mkdir(exist_ok=True)
 
-    canal_loc_run = RUNS_DIR / "l0_disc_localizer_real"
-    canal_grader_run = RUNS_DIR / "v1_canal_auto_robust"
-
-    model, slice_size = load_localizer(canal_loc_run, device)
+    model, slice_size = load_localizer(RUN_MAP["l0_disc_localizer_real"], device)
     loc = localize_study(study, test_images, series_index, model, slice_size, device)
     if loc is None:
         print("[canal] localization failed — uniform prior")
@@ -231,15 +196,12 @@ def infer_canal(study, series_index, tmp_cache):
                                   level, None, x, y, rel, "sagittal_t2"))
 
     mpath = write_manifest(records, out_dir / "manifest.parquet")
-    return _run_grader(canal_grader_run, mpath, out_dir)
+    return _run_grader(RUN_MAP["v1_canal_auto_robust"], mpath, out_dir)
 
 
 def infer_foraminal(study, series_index, tmp_cache):
     out = {"left": {}, "right": {}}
-    for_loc_run = RUNS_DIR / "lf_foraminal_localizer"
-    for_grader_run = RUNS_DIR / "v1_foraminal_oracle_ctrl"
-
-    model, slice_size = _load_foraminal_localizer(for_loc_run, device)
+    model, slice_size = _load_foraminal_localizer(RUN_MAP["lf_foraminal_localizer"], device)
     series_id = pick_sagittal_t1(series_index, study, test_images)
     if series_id is None:
         print("[foraminal] no sagittal_t1 — uniform prior")
@@ -294,17 +256,14 @@ def infer_foraminal(study, series_index, tmp_cache):
                                       level, side, x, y, rel, "sagittal_t1"))
 
         mpath = write_manifest(records, out_dir / "manifest.parquet")
-        out[side] = _run_grader(for_grader_run, mpath, out_dir)
+        out[side] = _run_grader(RUN_MAP["v1_foraminal_oracle_ctrl"], mpath, out_dir)
 
     return out
 
 
 def infer_subarticular(study, series_index, tmp_cache):
     out = {"left": {}, "right": {}}
-    scorer_run = RUNS_DIR / "axial_level_scorer"
-    sub_grader_run = RUNS_DIR / "v1_subarticular_auto_robust"
-
-    model, slice_size = load_axial_level_scorer(scorer_run, device)
+    model, slice_size = load_axial_level_scorer(RUN_MAP["axial_level_scorer"], device)
     ax_series = pick_axial_t2(series_index, study, test_images)
     if ax_series is None:
         print("[subarticular] no axial_t2 series — uniform prior")
@@ -347,7 +306,7 @@ def infer_subarticular(study, series_index, tmp_cache):
             continue
 
         mpath = write_manifest(records, out_dir / "manifest.parquet")
-        out[side] = _run_grader(sub_grader_run, mpath, out_dir)
+        out[side] = _run_grader(RUN_MAP["v1_subarticular_auto_robust"], mpath, out_dir)
 
     return out
 
@@ -384,7 +343,11 @@ def assemble_submission(study, canal_probs, foraminal_probs, sub_probs, sample_d
     return pd.DataFrame(rows)
 
 
-# --- run inference ---
+# ---------------------------------------------------------------------------
+# Step 4 — Run inference
+# ---------------------------------------------------------------------------
+
+print("\n=== Step 4: Run inference ===")
 
 series_index = _build_series_index()
 print(f"Series index:\n{series_index.to_string(index=False)}")
@@ -418,10 +381,10 @@ submission.to_csv(OUTPUT_CSV, index=False)
 print(f"\n[output] {OUTPUT_CSV} ({len(submission)} rows)")
 
 # ---------------------------------------------------------------------------
-# Step 6 — Validate
+# Step 5 — Validate
 # ---------------------------------------------------------------------------
 
-print("\n=== Step 6: Validate submission ===")
+print("\n=== Step 5: Validate submission ===")
 sums = submission[["normal_mild", "moderate", "severe"]].sum(axis=1)
 nan_count = submission[["normal_mild", "moderate", "severe"]].isna().sum().sum()
 dup_count = submission["row_id"].duplicated().sum()
@@ -437,9 +400,9 @@ if nan_count:
 if dup_count:
     issues.append(f"{dup_count} duplicate row_ids")
 if missing:
-    issues.append(f"{len(missing)} missing row_ids: {missing}")
+    issues.append(f"{len(missing)} missing row_ids")
 if extra:
-    issues.append(f"{len(extra)} extra row_ids: {extra}")
+    issues.append(f"{len(extra)} extra row_ids")
 
 passed = len(issues) == 0
 print(f"Passed: {passed}")
