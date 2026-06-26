@@ -70,6 +70,13 @@ SUBARTICULAR_COND = {
 print("=== Step 1: Diagnose environment and install SpineScoutX ===")
 print(f"Python: {sys.version}")
 
+print(f"\nContents of {KAGGLE_INPUT}:")
+if KAGGLE_INPUT.exists():
+    for p in sorted(KAGGLE_INPUT.iterdir()):
+        print(f"  {'DIR' if p.is_dir() else 'FILE'}: {p.name}")
+else:
+    print(f"  {KAGGLE_INPUT} MISSING!")
+
 print(f"\nContents of {MODEL_ASSET}:")
 if MODEL_ASSET.exists():
     for p in sorted(MODEL_ASSET.iterdir()):
