@@ -130,31 +130,33 @@ Weights are **not** in Git history (> 50 MiB → GitHub Release asset only).
 
 ---
 
-## External benchmark (Kaggle late submission attempts)
+## External benchmark (Kaggle late submission)
 
-Two late submission attempts were made against the
+Three submission attempts were made against the
 **RSNA 2024 Lumbar Spine Degenerative Classification** competition using the
 v1.9 best raw graders.
 
-**v1.9.1 (CSV upload):** Returned HTTP 400 — the competition is code-only and
-does not accept plain CSV uploads after closing.
+**v1.9.1 (CSV upload):** HTTP 400 — competition is code-only.
 
-**v1.9.2 (Kaggle Notebook kernel):** Built a full inference kernel
-(`arashsajjadi/spinescoutx-v1-9-late-submission`, v7) that ran the complete
-5-route pipeline end-to-end on Kaggle infrastructure (CPU fallback; Tesla P100
-CUDA 6.0 is incompatible with PyTorch 2.x ≥7.0). The kernel completed
-successfully, producing a passing 25-row `submission.csv` (validation passed,
-prob sums = 1.000). The code-kernel submission also returned HTTP 400 —
-the competition API rejects all new submissions regardless of method after the
-October 2024 close date.
+**v1.9.2 (kernel v7, internet enabled):** Kernel ran successfully (COMPLETE),
+valid 25-row `submission.csv`. Blocked at submit UI: competition requires
+internet-disabled notebook.
 
-**No official score was obtained.** For context, the competition's public
-leaderboard shows a top score of **0.332** (weighted log loss, lower = better)
-with 1875 teams. The Kaggle metric is not comparable to our internal severe
-recall metric. See
+**v1.9.3 (kernel v8, internet disabled — ACCEPTED):** Root cause was that
+`timm.create_model("convnext_tiny", pretrained=True)` downloads ImageNet weights
+from HuggingFace, even though `best.pt` immediately overwrites them. Fix: set
+`HF_HUB_OFFLINE=1` and monkey-patch `build_backbone` to force `pretrained=False`
+(no weight download; fine-tuned `best.pt` produces identical results). Kernel v8
+ran offline-clean (0 HuggingFace requests) and produced a passing 25-row
+`submission.csv`. Submission **accepted** by Kaggle (ref: 54064897, status: PENDING
+scoring). See
+[docs/run_logs/kaggle_notebook_late_submission_result_v1_9_3.md](docs/run_logs/kaggle_notebook_late_submission_result_v1_9_3.md)
+for score once Kaggle's scoring queue completes.
+
+Competition context: public leaderboard top = **0.332** (weighted log loss,
+lower = better), 1875 teams. Kaggle metric is not comparable to internal severe
+recall. See
 [docs/run_logs/kaggle_leaderboard_comparison.md](docs/run_logs/kaggle_leaderboard_comparison.md)
-and
-[docs/run_logs/kaggle_notebook_late_submission_result_v1_9_2.md](docs/run_logs/kaggle_notebook_late_submission_result_v1_9_2.md)
 for full analysis.
 
 ---
